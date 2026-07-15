@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SistemaERP.Api/SistemaERP.Api.csproj" />
+    <Project Path="src/SistemaERP.Application/SistemaERP.Application.csproj" />
+    <Project Path="src/SistemaERP.Domain/SistemaERP.Domain.csproj" />
+    <Project Path="src/SistemaERP.Infrastructure/SistemaERP.Infrastructure.csproj" />
+  </Folder>
+</Solution>
