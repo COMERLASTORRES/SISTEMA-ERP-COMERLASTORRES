@@ -22,6 +22,10 @@ public static class ServiceCollectionExtensions
         // Apply migrations on build if needed
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IStockMovementRepository, StockMovementRepository>();
+        services.AddScoped<IStockMovementService, StockMovementService>();
         services.AddDbContextInitializer();
 
         return services;

@@ -13,6 +13,7 @@ public class Product : AuditableEntity
     public decimal SalePrice { get; set; }
     public int Stock { get; set; }
     public int StockMinimum { get; set; }
+    public Guid? CategoryId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public bool IsActive { get; set; } = true;

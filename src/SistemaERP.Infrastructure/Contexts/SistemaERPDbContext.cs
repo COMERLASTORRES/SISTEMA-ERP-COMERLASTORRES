@@ -14,6 +14,8 @@ public class SistemaERPDbContext : DbContext
     }
 
     public DbSet<Product> Products { get; set; } = null!;
+    public DbSet<Category> Categories { get; set; } = null!;
+    public DbSet<StockMovement> StockMovements { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,6 +26,35 @@ public class SistemaERPDbContext : DbContext
         modelBuilder.Entity<Product>()
             .HasIndex(p => new { p.TenantId, p.Code })
             .IsUnique();
+
+        // Category multi‑tenant query filter
+        modelBuilder.Entity<Category>().HasQueryFilter(c => c.IsActive && c.TenantId == _tenantProvider.GetTenantId());
+
+        // Category name is unique per tenant
+        modelBuilder.Entity<Category>()
+            .HasIndex(c => new { c.TenantId, c.Name })
+            .IsUnique();
+
+        // Optional Product -> Category relationship
+        modelBuilder.Entity<Product>()
+            .HasOne<Category>()
+            .WithMany()
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // StockMovement multi-tenant query filter (immutable history, no soft-delete)
+        modelBuilder.Entity<StockMovement>().HasQueryFilter(m => m.TenantId == _tenantProvider.GetTenantId());
+
+        // Composite index for tenant + product lookups
+        modelBuilder.Entity<StockMovement>()
+            .HasIndex(m => new { m.TenantId, m.ProductId });
+
+        // StockMovement references Product; restrict deletion to preserve history
+        modelBuilder.Entity<StockMovement>()
+            .HasOne<Product>()
+            .WithMany()
+            .HasForeignKey(m => m.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         base.OnModelCreating(modelBuilder);
     }
