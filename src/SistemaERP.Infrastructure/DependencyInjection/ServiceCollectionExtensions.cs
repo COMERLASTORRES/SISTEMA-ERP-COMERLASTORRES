@@ -26,6 +26,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IStockMovementRepository, StockMovementRepository>();
         services.AddScoped<IStockMovementService, StockMovementService>();
+        services.AddScoped<ITenantRepository, TenantRepository>();
+        services.AddScoped<ITenantService, TenantService>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserService, UserService>();
         services.AddDbContextInitializer();
 
         return services;

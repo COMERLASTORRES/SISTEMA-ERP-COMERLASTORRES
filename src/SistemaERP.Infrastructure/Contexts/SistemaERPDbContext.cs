@@ -16,6 +16,8 @@ public class SistemaERPDbContext : DbContext
     public DbSet<Product> Products { get; set; } = null!;
     public DbSet<Category> Categories { get; set; } = null!;
     public DbSet<StockMovement> StockMovements { get; set; } = null!;
+    public DbSet<Tenant> Tenants { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,11 +58,44 @@ public class SistemaERPDbContext : DbContext
             .HasForeignKey(m => m.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Tenant is the root entity (the business itself): it is NOT tenant-scoped,
+        // so it has no multi-tenant query filter and is queryable globally (e.g. during login).
+        modelBuilder.Entity<Tenant>()
+            .HasIndex(t => t.Name);
+
+        // User is tenant-scoped (each user belongs to a tenant).
+        modelBuilder.Entity<User>().HasQueryFilter(u => u.IsActive && u.TenantId == _tenantProvider.GetTenantId());
+
+        // Email must be unique GLOBALLY (login is by email before the tenant is known),
+        // so the index is on Email alone, not composed with TenantId.
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Email)
+            .IsUnique();
+
+        // User -> Tenant relationship.
+        modelBuilder.Entity<User>()
+            .HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(u => u.TenantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         base.OnModelCreating(modelBuilder);
     }
 
     // Override SaveChanges to set audit fields for all AuditableEntity instances
     public override int SaveChanges()
+    {
+        UpdateAuditFields();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        UpdateAuditFields();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void UpdateAuditFields()
     {
         var entries = ChangeTracker.Entries()
             .Where(e => e.Entity is AuditableEntity &&
@@ -78,7 +113,5 @@ public class SistemaERPDbContext : DbContext
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }
-
-        return base.SaveChanges();
     }
 }

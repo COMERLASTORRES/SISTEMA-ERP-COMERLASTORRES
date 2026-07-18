@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using SistemaERP.Application.Services;
@@ -10,6 +11,7 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class StockMovementsController : ControllerBase
     {
@@ -84,11 +86,6 @@ namespace SistemaERP.Api.Controllers
             var claim = User.FindFirst("tenantId");
             if (claim != null && Guid.TryParse(claim.Value, out var id))
                 return id;
-
-            if (HttpContext.RequestServices.GetService(typeof(IHostEnvironment)) is IHostEnvironment env && env.IsDevelopment())
-            {
-                return Guid.Parse("11111111-1111-1111-1111-111111111111");
-            }
 
             return Guid.Empty;
         }
