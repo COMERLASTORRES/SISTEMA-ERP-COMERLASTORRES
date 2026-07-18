@@ -18,6 +18,7 @@ public class SistemaERPDbContext : DbContext
     public DbSet<StockMovement> StockMovements { get; set; } = null!;
     public DbSet<Tenant> Tenants { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<Customer> Customers { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -78,6 +79,14 @@ public class SistemaERPDbContext : DbContext
             .WithMany()
             .HasForeignKey(u => u.TenantId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Customer multi-tenant query filter (soft-delete via IsActive)
+        modelBuilder.Entity<Customer>().HasQueryFilter(c => c.IsActive && c.TenantId == _tenantProvider.GetTenantId());
+
+        // DocumentNumber is unique per tenant
+        modelBuilder.Entity<Customer>()
+            .HasIndex(c => new { c.TenantId, c.DocumentNumber })
+            .IsUnique();
 
         base.OnModelCreating(modelBuilder);
     }
