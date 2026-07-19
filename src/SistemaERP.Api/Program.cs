@@ -5,7 +5,14 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Serializa en camelCase para coincidir con el contrato del frontend
+        // (ej. CashRegisterResponseDto.Id -> "id"). Sin esto, System.Text.Json
+        // usa PascalCase y el frontend recibe "Id", dejando register.id en undefined.
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

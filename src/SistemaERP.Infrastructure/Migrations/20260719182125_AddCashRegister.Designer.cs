@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SistemaERP.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using SistemaERP.Infrastructure.Contexts;
 namespace SistemaERP.Infrastructure.Migrations
 {
     [DbContext(typeof(SistemaERPDbContext))]
-    partial class SistemaERPDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719182125_AddCashRegister")]
+    partial class AddCashRegister
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -720,7 +723,7 @@ namespace SistemaERP.Infrastructure.Migrations
             modelBuilder.Entity("SistemaERP.Domain.Entities.CashMovement", b =>
                 {
                     b.HasOne("SistemaERP.Domain.Entities.CashRegister", null)
-                        .WithMany("Movements")
+                        .WithMany()
                         .HasForeignKey("CashRegisterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -803,11 +806,6 @@ namespace SistemaERP.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("SistemaERP.Domain.Entities.CashRegister", b =>
-                {
-                    b.Navigation("Movements");
                 });
 
             modelBuilder.Entity("SistemaERP.Domain.Entities.Purchase", b =>

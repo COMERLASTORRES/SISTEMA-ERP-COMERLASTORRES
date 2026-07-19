@@ -18,6 +18,7 @@ namespace SistemaERP.Application.Services
         private readonly IStockMovementService _stockMovementService;
         private readonly IProductRepository _productRepository;
         private readonly ITenantRepository _tenantRepository;
+        private readonly ICashRegisterService _cashRegisterService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<SaleService> _logger;
 
@@ -26,6 +27,7 @@ namespace SistemaERP.Application.Services
             IStockMovementService stockMovementService,
             IProductRepository productRepository,
             ITenantRepository tenantRepository,
+            ICashRegisterService cashRegisterService,
             IUnitOfWork unitOfWork,
             ILogger<SaleService> logger)
         {
@@ -33,6 +35,7 @@ namespace SistemaERP.Application.Services
             _stockMovementService = stockMovementService;
             _productRepository = productRepository;
             _tenantRepository = tenantRepository;
+            _cashRegisterService = cashRegisterService;
             _unitOfWork = unitOfWork;
             _logger = logger;
         }
@@ -174,7 +177,20 @@ namespace SistemaERP.Application.Services
                     $"Stock insuficiente para confirmar la venta. {detail}");
             }
 
-            // Transacción: registrar salidas de stock y confirmar la venta de forma atómica.
+            // Para ventas al contado, la caja abierta es pre-requisito. Se resuelve ANTES
+            // de tocar el stock para fallar temprano sin efectos parciales.
+            CashRegister? openCashRegister = null;
+            if (sale.PaymentType == PaymentType.Cash)
+            {
+                openCashRegister = await _cashRegisterService.GetOpenCashRegisterForUserAsync(
+                    sale.TenantId, userId);
+                if (openCashRegister == null)
+                    throw new InvalidOperationException(
+                        "Debe abrir una caja antes de confirmar ventas al contado.");
+            }
+
+            // Transacción: registrar salidas de stock, el movimiento de caja (si aplica) y
+            // confirmar la venta de forma atómica.
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -188,6 +204,20 @@ namespace SistemaERP.Application.Services
                         Quantity = item.Quantity,
                         Reason = $"Venta {sale.SaleNumber}",
                     });
+                }
+
+                // Movimiento de caja para ventas al contado (después de descontar el stock).
+                if (sale.PaymentType == PaymentType.Cash && openCashRegister != null)
+                {
+                    await _cashRegisterService.RegisterMovementAsync(
+                        cashRegisterId: openCashRegister.Id,
+                        type: CashMovementType.Income,
+                        reason: MovementReason.Sale,
+                        paymentMethod: sale.PaymentMethod ?? PaymentMethod.Cash,
+                        amount: sale.Total,
+                        description: $"Venta {sale.SaleNumber}",
+                        saleId: sale.Id,
+                        userId: userId);
                 }
 
                 sale.Status = SaleStatus.Confirmed;

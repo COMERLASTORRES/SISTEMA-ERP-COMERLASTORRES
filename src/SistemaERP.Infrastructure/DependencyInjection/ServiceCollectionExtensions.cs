@@ -38,6 +38,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<ISaleRepository, SaleRepository>();
         services.AddScoped<ISaleService, SaleService>();
+        services.AddScoped<ICashRegisterRepository, CashRegisterRepository>();
+        services.AddScoped<ICashRegisterService, CashRegisterService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddDbContextInitializer();
 

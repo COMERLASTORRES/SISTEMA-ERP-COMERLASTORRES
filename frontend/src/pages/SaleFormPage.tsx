@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
+import { useOpenCashRegister } from '../hooks/useCashRegisters';
 import {
   useSale,
   useCreateSale,
@@ -59,6 +60,7 @@ export function SaleFormPage() {
   const confirmMutation = useConfirmSale();
   const cancelMutation = useCancelSale();
   const validateStockMutation = useValidateSaleStock();
+  const { data: openCashRegister } = useOpenCashRegister();
 
   const [customerId, setCustomerId] = useState('');
   const [voucherType, setVoucherType] = useState<VoucherType>(VoucherType.Boleta);
@@ -224,6 +226,11 @@ export function SaleFormPage() {
   const readOnly = isEdit && sale?.status !== SaleStatus.Draft;
   const isDraft = !isEdit || sale?.status === SaleStatus.Draft;
   const isCancelled = sale?.status === SaleStatus.Cancelled;
+
+  // Para ventas al contado, se requiere una caja abierta del usuario. Si no la hay,
+  // se bloquea el botón Confirmar y se muestra un aviso con link a /caja.
+  const cashBlockedForConfirm =
+    isDraft && paymentType === PaymentType.Cash && openCashRegister == null;
 
   return (
     <div className="space-y-6">
@@ -499,9 +506,22 @@ export function SaleFormPage() {
           </Button>
         )}
         {isDraft && id && (
-          <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
-            Confirmar
-          </Button>
+          <>
+            <Button
+              onClick={handleConfirm}
+              disabled={confirmMutation.isPending || cashBlockedForConfirm}
+            >
+              Confirmar
+            </Button>
+            {cashBlockedForConfirm && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de confirmar ventas al contado.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
+          </>
         )}
         {!isCancelled && id && (
           <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>

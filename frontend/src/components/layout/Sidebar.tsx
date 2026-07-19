@@ -8,6 +8,7 @@ const menuItems = [
   { to: '/proveedores', label: 'Proveedores', icon: '🏢' },
   { to: '/compras', label: 'Compras', icon: '🧾' },
   { to: '/ventas', label: 'Ventas', icon: '🧾' },
+  { to: '/caja', label: 'Caja', icon: '💰' },
   { to: '/stock', label: 'Movimientos de Stock', icon: '📈' },
 ];
 

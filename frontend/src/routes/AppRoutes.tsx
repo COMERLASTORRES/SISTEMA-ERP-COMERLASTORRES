@@ -13,6 +13,9 @@ import { PurchaseDetailPage } from '../pages/PurchaseDetailPage';
 import { SalesPage } from '../pages/SalesPage';
 import { SaleFormPage } from '../pages/SaleFormPage';
 import { SaleDetailPage } from '../pages/SaleDetailPage';
+import { CashRegisterPage } from '../pages/CashRegisterPage';
+import { CashRegisterHistoryPage } from '../pages/CashRegisterHistoryPage';
+import { CashRegisterDetailPage } from '../pages/CashRegisterDetailPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export function AppRoutes() {
@@ -36,6 +39,9 @@ export function AppRoutes() {
             <Route path="/ventas/nueva" element={<SaleFormPage />} />
             <Route path="/ventas/:id" element={<SaleDetailPage />} />
             <Route path="/ventas/:id/editar" element={<SaleFormPage />} />
+            <Route path="/caja" element={<CashRegisterPage />} />
+            <Route path="/caja/historial" element={<CashRegisterHistoryPage />} />
+            <Route path="/caja/:id" element={<CashRegisterDetailPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -24,6 +24,8 @@ public class SistemaERPDbContext : DbContext
     public DbSet<PurchaseItem> PurchaseItems { get; set; } = null!;
     public DbSet<Sale> Sales { get; set; } = null!;
     public DbSet<SaleItem> SaleItems { get; set; } = null!;
+    public DbSet<CashRegister> CashRegisters { get; set; } = null!;
+    public DbSet<CashMovement> CashMovements { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -201,6 +203,58 @@ public class SistemaERPDbContext : DbContext
             .Property(i => i.LineTax).HasColumnType("decimal(18,2)");
         modelBuilder.Entity<SaleItem>()
             .Property(i => i.LineTotal).HasColumnType("decimal(18,2)");
+
+        // CashRegister multi-tenant query filter (the header is tenant-scoped; movements
+        // are filtered indirectly through their parent CashRegister).
+        modelBuilder.Entity<CashRegister>().HasQueryFilter(c => c.TenantId == _tenantProvider.GetTenantId());
+
+        // CashRegisterNumber is unique per tenant.
+        modelBuilder.Entity<CashRegister>()
+            .HasIndex(c => new { c.TenantId, c.CashRegisterNumber })
+            .IsUnique();
+
+        // Simple indexes for the most common lookups/filters.
+        modelBuilder.Entity<CashRegister>().HasIndex(c => c.UserId);
+        modelBuilder.Entity<CashRegister>().HasIndex(c => c.Status);
+        modelBuilder.Entity<CashRegister>().HasIndex(c => c.OpeningDate);
+
+        // Monetary precision for the cash register amounts.
+        modelBuilder.Entity<CashRegister>()
+            .Property(c => c.OpeningAmount).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<CashRegister>()
+            .Property(c => c.ClosingAmount).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<CashRegister>()
+            .Property(c => c.ExpectedAmount).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<CashRegister>()
+            .Property(c => c.Difference).HasColumnType("decimal(18,2)");
+
+        // CashMovement -> CashRegister (Cascade: deleting a register removes its movements).
+        // Se usa la navegación explícita CashRegister.Movements para que EF reutilice la
+        // FK CashRegisterId existente en lugar de crear una FK sombra duplicada.
+        modelBuilder.Entity<CashMovement>()
+            .HasOne<CashRegister>()
+            .WithMany(cr => cr.Movements)
+            .HasForeignKey(m => m.CashRegisterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // CashMovement -> Sale (Restrict, nullable: a movement may not be linked to a sale).
+        modelBuilder.Entity<CashMovement>()
+            .HasOne<Sale>()
+            .WithMany()
+            .HasForeignKey(m => m.SaleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Monetary precision for the cash movement amount.
+        modelBuilder.Entity<CashMovement>()
+            .Property(m => m.Amount).HasColumnType("decimal(18,2)");
+
+        // Partial unique index: at most one movement per (CashRegister, Sale) when SaleId
+        // is present (PostgreSQL partial index via HasFilter). Prevents double-linking a
+        // sale to the same register more than once.
+        modelBuilder.Entity<CashMovement>()
+            .HasIndex(m => new { m.CashRegisterId, m.SaleId })
+            .IsUnique()
+            .HasFilter("\"SaleId\" IS NOT NULL");
 
         base.OnModelCreating(modelBuilder);
     }
