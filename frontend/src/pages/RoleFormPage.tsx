@@ -60,7 +60,7 @@ export function RoleFormPage() {
     });
   };
 
-  const toggleModule = (module: string, permissionIds: string[], checked: boolean) => {
+  const toggleModule = (_module: string, permissionIds: string[], checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
       for (const pid of permissionIds) {
@@ -90,7 +90,7 @@ export function RoleFormPage() {
           name: name.trim(),
           description: description.trim() || null,
         });
-        await assignMutation.mutateAsync({ id: created.id, permissionIds });
+        await assignMutation.mutateAsync({ id: created.data.id, permissionIds });
       }
       navigate('/roles');
     } catch (err: any) {

@@ -39,7 +39,7 @@ export const usersApi = {
   create: (payload: CreateUserPayload) => api.post<User>('/api/Users', payload),
 
   update: (id: string, payload: UpdateUserPayload) =>
-    api.put<void>(`/api/Users/${id}`, { id, ...payload }),
+    api.put<void>(`/api/Users/${id}`, payload),
 
   assignRoles: (id: string, roleIds: string[]) =>
     api.put<void>(`/api/Users/${id}/roles`, { roleIds }),

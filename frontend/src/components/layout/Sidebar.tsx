@@ -1,20 +1,53 @@
 import { NavLink } from 'react-router-dom';
+import { RequirePermission } from '../RequirePermission';
+import { PermissionCodes } from '../../api/permissionCodes';
 
 const operationalItems = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
-  { to: '/productos', label: 'Productos', icon: '📦' },
-  { to: '/categorias', label: 'Categorías', icon: '🏷️' },
-  { to: '/clientes', label: 'Clientes', icon: '👥' },
-  { to: '/proveedores', label: 'Proveedores', icon: '🏢' },
-  { to: '/compras', label: 'Compras', icon: '🧾' },
-  { to: '/ventas', label: 'Ventas', icon: '🧾' },
-  { to: '/caja', label: 'Caja', icon: '💰' },
-  { to: '/stock', label: 'Movimientos de Stock', icon: '📈' },
+  { to: '/productos', label: 'Productos', icon: '📦', permission: PermissionCodes.ProductsView },
+  { to: '/categorias', label: 'Categorías', icon: '🏷️', permission: PermissionCodes.CategoriesView },
+  { to: '/clientes', label: 'Clientes', icon: '👥', permission: PermissionCodes.CustomersView },
+  { to: '/proveedores', label: 'Proveedores', icon: '🏢', permission: PermissionCodes.SuppliersView },
+  { to: '/compras', label: 'Compras', icon: '🧾', permission: PermissionCodes.PurchasesView },
+  { to: '/ventas', label: 'Ventas', icon: '🧾', permission: PermissionCodes.SalesView },
+  { to: '/caja', label: 'Caja', icon: '💰', permission: PermissionCodes.CashRegisterView },
+  { to: '/stock', label: 'Movimientos de Stock', icon: '📈', permission: PermissionCodes.StockMovementsView },
 ];
 
 const adminItems = [
-  { to: '/usuarios', label: 'Usuarios', icon: '👤' },
+  { to: '/usuarios', label: 'Usuarios', icon: '👤', permission: PermissionCodes.UsersView },
 ];
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: string;
+  end?: boolean;
+  permission?: string;
+}
+
+function NavItemLink({ item }: { item: NavItem }) {
+  const link = (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+          isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-sidebar-hover'
+        }`
+      }
+    >
+      <span className="text-base">{item.icon}</span>
+      {item.label}
+    </NavLink>
+  );
+
+  // Si el item exige un permiso, solo se muestra si el usuario lo tiene.
+  if (item.permission) {
+    return <RequirePermission codes={item.permission}>{link}</RequirePermission>;
+  }
+  return link;
+}
 
 export function Sidebar() {
   return (
@@ -24,19 +57,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {operationalItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-sidebar-hover'
-              }`
-            }
-          >
-            <span className="text-base">{item.icon}</span>
-            {item.label}
-          </NavLink>
+          <NavItemLink key={item.to} item={item} />
         ))}
 
         <div className="pt-4 mt-2 border-t border-sidebar-hover">
@@ -44,18 +65,7 @@ export function Sidebar() {
             Administración
           </div>
           {adminItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-sidebar-hover'
-                }`
-              }
-            >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
-            </NavLink>
+            <NavItemLink key={item.to} item={item} />
           ))}
         </div>
       </nav>

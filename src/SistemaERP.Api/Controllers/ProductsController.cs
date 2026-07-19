@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using System;
 using System.Linq;
@@ -11,7 +12,6 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/[controller]")]
     public class ProductsController : ControllerBase
     {
@@ -23,6 +23,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Products?page=1&pageSize=10
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.ProductsView)]
         public async Task<IActionResult> Get([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             if (page <= 0) page = 1;
@@ -48,6 +49,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Products/{id}
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.ProductsView)]
         public async Task<IActionResult> Get(Guid id)
         {
             var product = await _productService.GetByIdAsync(id);
@@ -57,6 +59,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Products
         [HttpPost]
+        [Authorize(Policy = PermissionCodes.ProductsCreate)]
         public async Task<IActionResult> Post([FromBody] Product model)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -77,6 +80,7 @@ namespace SistemaERP.Api.Controllers
 
         // PUT: api/Products/{id}
         [HttpPut("{id}")]
+        [Authorize(Policy = PermissionCodes.ProductsEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] Product model)
         {
             if (id != model.Id) return BadRequest("ID mismatch");
@@ -106,6 +110,7 @@ namespace SistemaERP.Api.Controllers
 
         // DELETE: api/Products/{id}
         [HttpDelete("{id}")]
+        [Authorize(Policy = PermissionCodes.ProductsDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
             var product = await _productService.GetByIdAsync(id);

@@ -69,8 +69,7 @@ export function UserFormPage() {
         password,
         fullName: fullName.trim(),
       });
-      console.log('[DEBUG] created user response:', JSON.stringify(created, null, 2));
-      setCreatedUserId(created.id);
+      setCreatedUserId(created.data.id);
     } catch (err: any) {
       setFormError(extractError(err));
     }
