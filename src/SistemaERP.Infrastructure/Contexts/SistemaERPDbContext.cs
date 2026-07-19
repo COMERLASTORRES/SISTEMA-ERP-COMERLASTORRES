@@ -26,6 +26,10 @@ public class SistemaERPDbContext : DbContext
     public DbSet<SaleItem> SaleItems { get; set; } = null!;
     public DbSet<CashRegister> CashRegisters { get; set; } = null!;
     public DbSet<CashMovement> CashMovements { get; set; } = null!;
+    public DbSet<Permission> Permissions { get; set; } = null!;
+    public DbSet<Role> Roles { get; set; } = null!;
+    public DbSet<RolePermission> RolePermissions { get; set; } = null!;
+    public DbSet<UserRole> UserRoles { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -272,6 +276,67 @@ public class SistemaERPDbContext : DbContext
             .HasIndex(m => new { m.CashRegisterId, m.PurchaseId, m.Type })
             .IsUnique()
             .HasFilter("\"PurchaseId\" IS NOT NULL");
+
+        // ---- RBAC: Permission / Role / RolePermission / UserRole ----
+
+        // Permission es GLOBAL (no tiene TenantId y NO lleva filtro multi-tenant). El
+        // catálogo de permisos se comparte entre todas las empresas de la plataforma.
+        modelBuilder.Entity<Permission>()
+            .HasIndex(p => p.Code)
+            .IsUnique();
+
+        // Role pertenece a un Tenant y lleva filtro multi-tenant. El nombre debe ser único
+        // DENTRO del mismo tenant (dos tenants pueden tener cada uno un rol "Cajero").
+        modelBuilder.Entity<Role>().HasQueryFilter(r => r.TenantId == _tenantProvider.GetTenantId());
+        modelBuilder.Entity<Role>()
+            .HasIndex(r => new { r.TenantId, r.Name })
+            .IsUnique();
+
+        // Role -> Tenant (Restrict: no borrar un tenant que tenga roles definidos).
+        modelBuilder.Entity<Role>()
+            .HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(r => r.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // RolePermission: PK compuesta (RoleId, PermissionId) y cascade delete. Muchos-a-muchos.
+        // Filtro espejo del multi-tenant de Role: Role es el lado requerido de la relación,
+        // así que sin esto las consultas directas a RolePermission podrían devolver filas
+        // cuyo Role está oculto por el filtro global. EF Core recomienda replicar el filtro
+        // en las tablas de unión cuando hay filtros globales con relaciones requeridas.
+        modelBuilder.Entity<RolePermission>()
+            .HasQueryFilter(rp => rp.Role.TenantId == _tenantProvider.GetTenantId());
+        modelBuilder.Entity<RolePermission>()
+            .HasKey(rp => new { rp.RoleId, rp.PermissionId });
+        modelBuilder.Entity<RolePermission>()
+            .HasOne(rp => rp.Role)
+            .WithMany(r => r.RolePermissions)
+            .HasForeignKey(rp => rp.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RolePermission>()
+            .HasOne(rp => rp.Permission)
+            .WithMany(p => p.RolePermissions)
+            .HasForeignKey(rp => rp.PermissionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // UserRole: PK compuesta (UserId, RoleId) y cascade delete. Muchos-a-muchos.
+        // Filtro espejo del multi-tenant de Role (UserRole.Role): idéntico propósito que el
+        // filtro en RolePermission, para que las consultas directas a UserRole no devuelvan
+        // asignaciones de roles ocultos por el filtro global de Role.
+        modelBuilder.Entity<UserRole>()
+            .HasQueryFilter(ur => ur.Role.TenantId == _tenantProvider.GetTenantId());
+        modelBuilder.Entity<UserRole>()
+            .HasKey(ur => new { ur.UserId, ur.RoleId });
+        modelBuilder.Entity<UserRole>()
+            .HasOne(ur => ur.User)
+            .WithMany(u => u.UserRoles)
+            .HasForeignKey(ur => ur.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<UserRole>()
+            .HasOne(ur => ur.Role)
+            .WithMany(r => r.UserRoles)
+            .HasForeignKey(ur => ur.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         base.OnModelCreating(modelBuilder);
     }

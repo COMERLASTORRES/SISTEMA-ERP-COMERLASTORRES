@@ -26,6 +26,18 @@ namespace SistemaERP.Infrastructure.Repositories
             return await _context.Users.FindAsync(id);
         }
 
+        // Carga el usuario junto con sus asignaciones de rol (UserRole). Necesario para
+        // resolver los permisos efectivos sin dispersar la lógica de inclusión en los servicios.
+        public async Task<User?> GetByIdWithRolesAsync(Guid id)
+        {
+            return await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .ThenInclude(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
+                .FirstOrDefaultAsync(u => u.Id == id);
+        }
+
         // Login/registration look up a user by email across ALL tenants, before any
         // tenant context exists, so the multi-tenant query filter must be bypassed.
         public async Task<User?> GetByEmailAsync(string email)
@@ -40,6 +52,12 @@ namespace SistemaERP.Infrastructure.Repositories
             var entity = await _context.Users.AddAsync(user);
             await _context.SaveChangesAsync();
             return entity.Entity;
+        }
+
+        public async Task UpdateAsync(User user)
+        {
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
         }
     }
 }

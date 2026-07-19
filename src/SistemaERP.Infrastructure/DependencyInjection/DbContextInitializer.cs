@@ -25,8 +25,11 @@ public class DbInitializer
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SistemaERPDbContext>();
-        
+
         // Apply pending migrations
         await context.Database.MigrateAsync();
+
+        // Seed del catálogo base de permisos (idempotente por Code).
+        await PermissionSeed.SeedAsync(context);
     }
 }

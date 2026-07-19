@@ -40,6 +40,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISaleService, SaleService>();
         services.AddScoped<ICashRegisterRepository, CashRegisterRepository>();
         services.AddScoped<ICashRegisterService, CashRegisterService>();
+        services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddDbContextInitializer();
 

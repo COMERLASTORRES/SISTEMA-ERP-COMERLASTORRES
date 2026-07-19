@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using SistemaERP.Infrastructure.DependencyInjection;
 using System.Text;
@@ -71,6 +72,19 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? "Host=localhost;Port=5432;Database=sistema_erp;Username=postgres;Password=Carloskiki47";
 
 builder.Services.AddInfrastructureServices(connectionString);
+
+// --- Autorización basada en permisos (RBAC, PARTE 3) ---
+// El proveedor dinámico resuelve cualquier política cuyo nombre sea un código de permiso
+// (ej. "sales.create") a RequireClaim("permission", "sales.create"). El claim "permission"
+// se emite en el JWT durante el login (uno por permiso efectivo), por lo que la validación
+// no toca la base de datos. No es necesario registrar cada política a mano.
+//
+// MIGRACIÓN GRADUAL DE CONTROLLERS (futura PARTE): en lugar de [Authorize] simple, usar
+//   using SistemaERP.Domain;
+//   [Authorize(Policy = PermissionCodes.SalesCreate)]
+// Esto reemplaza progresivamente los [Authorize] actuales de Products/Sales/Purchases/etc.
+// sin requerir cambios aquí. Por ahora los controllers existentes siguen con [Authorize].
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, SistemaERP.Api.Authorization.PermissionPolicyProvider>();
 
 builder.Services.AddCors(options =>
 {

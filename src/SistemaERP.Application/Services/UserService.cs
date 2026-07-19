@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SistemaERP.Application.Repositories;
@@ -11,12 +13,21 @@ namespace SistemaERP.Application.Services
     {
         private readonly ITenantRepository _tenantRepository;
         private readonly IUserRepository _userRepository;
+        private readonly IRoleRepository _roleRepository;
+        private readonly IPermissionRepository _permissionRepository;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(ITenantRepository tenantRepository, IUserRepository userRepository, ILogger<UserService> logger)
+        public UserService(
+            ITenantRepository tenantRepository,
+            IUserRepository userRepository,
+            IRoleRepository roleRepository,
+            IPermissionRepository permissionRepository,
+            ILogger<UserService> logger)
         {
             _tenantRepository = tenantRepository;
             _userRepository = userRepository;
+            _roleRepository = roleRepository;
+            _permissionRepository = permissionRepository;
             _logger = logger;
         }
 
@@ -53,8 +64,43 @@ namespace SistemaERP.Application.Services
                 IsActive = true
             };
 
-            _logger.LogInformation("Registering admin user {Email} for tenant {TenantId}.", email, tenant.Id);
-            return await _userRepository.AddAsync(user);
+            user = await _userRepository.AddAsync(user);
+
+            // Todo tenant nuevo arranca con un rol Admin de sistema que tiene TODOS los
+            // permisos del catálogo y se asigna a su primer usuario, garantizando un admin
+            // funcional desde el inicio. Se crea dentro de RegisterAsync para que el rol
+            // quede disponible aunque el seed de permisos aún no haya corrido.
+            await EnsureSystemAdminRoleAsync(tenant.Id, user.Id);
+
+            _logger.LogInformation("Registered admin user {Email} for tenant {TenantId}.", email, tenant.Id);
+            return user;
+        }
+
+        private async Task EnsureSystemAdminRoleAsync(Guid tenantId, Guid userId)
+        {
+            var existingAdmin = (await _roleRepository.GetAllByTenantAsync(tenantId))
+                .FirstOrDefault(r => r.IsSystemRole && r.Name == "Admin");
+            if (existingAdmin != null)
+            {
+                // Ya existe el rol Admin (ej. otro usuario del mismo tenant): solo asignarlo.
+                await AssignRolesAsync(userId, new[] { existingAdmin.Id });
+                return;
+            }
+
+            var allPermissions = await _permissionRepository.GetAllAsync();
+            var adminRole = new Role
+            {
+                TenantId = tenantId,
+                Name = "Admin",
+                Description = "Administrador del sistema (acceso total).",
+                IsSystemRole = true,
+                RolePermissions = allPermissions
+                    .Select(p => new RolePermission { PermissionId = p.Id })
+                    .ToList(),
+            };
+
+            adminRole = await _roleRepository.AddAsync(adminRole);
+            await AssignRolesAsync(userId, new[] { adminRole.Id });
         }
 
         public async Task<User?> ValidateCredentialsAsync(string email, string password)
@@ -73,6 +119,45 @@ namespace SistemaERP.Application.Services
             }
 
             return user;
+        }
+
+        // Reemplaza el set completo de roles del usuario.
+        public async Task AssignRolesAsync(Guid userId, IEnumerable<Guid> roleIds)
+        {
+            var user = await _userRepository.GetByIdWithRolesAsync(userId);
+            if (user == null) throw new InvalidOperationException("El usuario no existe.");
+
+            var requestedIds = roleIds.Distinct().ToList();
+            var roles = (await _roleRepository.GetAllByTenantAsync(user.TenantId))
+                .Where(r => requestedIds.Contains(r.Id))
+                .ToList();
+            var validIds = new HashSet<Guid>(roles.Select(r => r.Id));
+
+            // Tolerante a ids inexistentes/duplicados: asigna solo los roles válidos del tenant.
+            user.UserRoles = validIds
+                .Select(rid => new UserRole { UserId = user.Id, RoleId = rid })
+                .ToList();
+
+            _logger.LogInformation("Assigned {Count} roles to user {UserId}.", validIds.Count, userId);
+            await _userRepository.UpdateAsync(user);
+        }
+
+        // Unión de los permisos de todos los roles del usuario (sin duplicados).
+        public async Task<IReadOnlyList<Permission>> GetUserPermissionsAsync(Guid userId)
+        {
+            var user = await _userRepository.GetByIdWithRolesAsync(userId);
+            if (user == null) return Array.Empty<Permission>();
+
+            return user.UserRoles
+                .Select(ur => ur.Role)
+                .SelectMany(r => r.RolePermissions)
+                .Select(rp => rp.Permission)
+                .Where(p => p != null)
+                .GroupBy(p => p!.Id)
+                .Select(g => g.First()!)
+                .OrderBy(p => p.Module)
+                .ThenBy(p => p.Code)
+                .ToList();
         }
     }
 }
