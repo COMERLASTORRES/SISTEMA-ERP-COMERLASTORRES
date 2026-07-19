@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SistemaERP.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using SistemaERP.Infrastructure.Contexts;
 namespace SistemaERP.Infrastructure.Migrations
 {
     [DbContext(typeof(SistemaERPDbContext))]
-    partial class SistemaERPDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719195042_CashMovementPurchaseId")]
+    partial class CashMovementPurchaseId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -68,11 +71,11 @@ namespace SistemaERP.Infrastructure.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.HasIndex("CashRegisterId", "PurchaseId", "Type")
+                    b.HasIndex("CashRegisterId", "PurchaseId")
                         .IsUnique()
                         .HasFilter("\"PurchaseId\" IS NOT NULL");
 
-                    b.HasIndex("CashRegisterId", "SaleId", "Type")
+                    b.HasIndex("CashRegisterId", "SaleId")
                         .IsUnique()
                         .HasFilter("\"SaleId\" IS NOT NULL");
 
@@ -295,15 +298,6 @@ namespace SistemaERP.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("CancellationReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CancelledBy")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime?>("ConfirmedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -431,15 +425,6 @@ namespace SistemaERP.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CancellationReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CancelledBy")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("ConfirmedAt")

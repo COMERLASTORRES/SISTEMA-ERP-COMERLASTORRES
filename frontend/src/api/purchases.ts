@@ -18,10 +18,48 @@ export enum Currency {
   USD = 1,
 }
 
+export enum PaymentType {
+  Cash = 0,
+  Credit = 1,
+}
+
+export enum PaymentMethod {
+  Cash = 0,
+  Card = 1,
+  Transfer = 2,
+  YapePlin = 3,
+  Other = 4,
+}
+
+export enum PaymentStatus {
+  Pending = 0,
+  Partial = 1,
+  Paid = 2,
+}
+
 export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
   [PurchaseStatus.Draft]: 'Borrador',
   [PurchaseStatus.Confirmed]: 'Confirmado',
   [PurchaseStatus.Cancelled]: 'Cancelado',
+};
+
+export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
+  [PaymentType.Cash]: 'Contado',
+  [PaymentType.Credit]: 'Crédito',
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  [PaymentMethod.Cash]: 'Efectivo',
+  [PaymentMethod.Card]: 'Tarjeta',
+  [PaymentMethod.Transfer]: 'Transferencia',
+  [PaymentMethod.YapePlin]: 'Yape/Plin',
+  [PaymentMethod.Other]: 'Otro',
+};
+
+export const PURCHASE_PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  [PaymentStatus.Pending]: 'Pendiente',
+  [PaymentStatus.Partial]: 'Parcial',
+  [PaymentStatus.Paid]: 'Pagado',
 };
 
 export interface PurchaseItem {
@@ -44,6 +82,11 @@ export interface Purchase {
   purchaseDate: string;
   currency: Currency;
   exchangeRate: number;
+  paymentType: PaymentType;
+  paymentMethod: PaymentMethod | null;
+  creditDays: number | null;
+  dueDate: string | null;
+  paymentStatus: PaymentStatus;
   observations: string | null;
   subtotal: number;
   tax: number;
@@ -52,6 +95,9 @@ export interface Purchase {
   createdBy: string | null;
   confirmedBy: string | null;
   confirmedAt: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
   items: PurchaseItem[];
 }
 
@@ -70,6 +116,9 @@ export interface CreatePurchasePayload {
   purchaseDate: string;
   currency: Currency;
   exchangeRate?: number;
+  paymentType: PaymentType;
+  paymentMethod?: PaymentMethod | null;
+  creditDays?: number | null;
   observations?: string | null;
   items: PurchaseItemPayload[];
 }
@@ -100,7 +149,8 @@ export const purchasesApi = {
 
   confirm: (id: string) => api.post<void>(`/api/Purchases/${id}/confirm`),
 
-  cancel: (id: string) => api.post<void>(`/api/Purchases/${id}/cancel`),
+  cancel: (id: string, reason?: string | null) =>
+    api.post<void>(`/api/Purchases/${id}/cancel`, reason ? { reason } : {}),
 
   remove: (id: string) => api.delete<void>(`/api/Purchases/${id}`),
 };

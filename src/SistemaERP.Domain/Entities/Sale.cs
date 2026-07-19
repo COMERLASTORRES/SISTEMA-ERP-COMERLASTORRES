@@ -56,6 +56,14 @@ public class Sale : AuditableEntity
     public Guid? ConfirmedBy { get; set; }
     public DateTime? ConfirmedAt { get; set; }
 
+    // Auditoría de cancelación (espejo de Purchase). Al cancelar un documento Confirmed,
+    // el sistema genera automáticamente movimientos inversos de stock (y de caja si aplica)
+    // referenciando el documento original — NUNCA se eliminan los movimientos previos, para
+    // preservar trazabilidad completa de auditoría. Se implementa en la Parte 2.
+    public Guid? CancelledBy { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public string? CancellationReason { get; set; }
+
     public string? Observations { get; set; }
 
     public ICollection<SaleItem> Items { get; set; } = new List<SaleItem>();

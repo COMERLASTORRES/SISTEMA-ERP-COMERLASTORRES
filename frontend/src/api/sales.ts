@@ -98,6 +98,9 @@ export interface Sale {
   createdBy: string | null;
   confirmedBy: string | null;
   confirmedAt: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
   observations: string | null;
   items: SaleItem[];
 }
@@ -171,7 +174,8 @@ export const salesApi = {
 
   confirm: (id: string) => api.post<void>(`/api/Sales/${id}/confirm`),
 
-  cancel: (id: string) => api.post<void>(`/api/Sales/${id}/cancel`),
+  cancel: (id: string, reason?: string | null) =>
+    api.post<void>(`/api/Sales/${id}/cancel`, reason ? { reason } : {}),
 
   remove: (id: string) => api.delete<void>(`/api/Sales/${id}`),
 };

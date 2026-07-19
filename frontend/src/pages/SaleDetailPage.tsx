@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
+import { useOpenCashRegister } from '../hooks/useCashRegisters';
 import {
   useSale,
   useConfirmSale,
@@ -46,6 +47,12 @@ export function SaleDetailPage() {
   const confirmMutation = useConfirmSale();
   const cancelMutation = useCancelSale();
   const validateStockMutation = useValidateSaleStock();
+  const { data: openCashRegister } = useOpenCashRegister();
+
+  // Para ventas al contado, cancelar genera un egreso de caja inverso, por lo que
+  // requiere una caja abierta del usuario (igual que confirmar). Crédito no aplica.
+  const cashBlockedForCancel =
+    sale?.paymentType === PaymentType.Cash && openCashRegister == null;
 
   const [formError, setFormError] = useState('');
   const [stockErrors, setStockErrors] = useState<StockValidationError[]>([]);
@@ -93,8 +100,10 @@ export function SaleDetailPage() {
   const handleCancel = async () => {
     if (!id) return;
     if (!window.confirm('¿Cancelar esta venta?')) return;
+    const reason = window.prompt('Motivo de la cancelación (opcional):');
+    if (reason === null) return; // el usuario canceló el prompt
     try {
-      await cancelMutation.mutateAsync(id);
+      await cancelMutation.mutateAsync({ id, reason: reason.trim() || null });
     } catch (err: any) {
       setFormError(extractError(err));
     }
@@ -141,6 +150,16 @@ export function SaleDetailPage() {
         <Field label="Forma de pago" value={paymentLabel} />
         {sale.dueDate && <Field label="Vencimiento" value={new Date(sale.dueDate).toLocaleDateString('es-PE')} />}
         <Field label="Observaciones" value={sale.observations ?? '—'} />
+        {sale.status === SaleStatus.Cancelled && (
+          <>
+            <Field label="Motivo de cancelación" value={sale.cancellationReason ?? '—'} />
+            <Field label="Cancelado por" value={sale.cancelledBy ?? '—'} />
+            <Field
+              label="Fecha de cancelación"
+              value={sale.cancelledAt ? new Date(sale.cancelledAt).toLocaleString('es-PE') : '—'}
+            />
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-5">
@@ -180,15 +199,41 @@ export function SaleDetailPage() {
             <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
               Confirmar
             </Button>
-            <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
+            <Button
+              variant="danger"
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending || cashBlockedForCancel}
+            >
               Cancelar
             </Button>
+            {cashBlockedForCancel && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de cancelar ventas al contado.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
           </>
         )}
         {sale.status === SaleStatus.Confirmed && (
-          <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
-            Cancelar
-          </Button>
+          <>
+            <Button
+              variant="danger"
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending || cashBlockedForCancel}
+            >
+              Cancelar
+            </Button>
+            {cashBlockedForCancel && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de cancelar ventas al contado.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
+          </>
         )}
         <Button variant="secondary" onClick={() => navigate('/ventas')}>
           Volver

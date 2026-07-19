@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { useProducts } from '../hooks/useProducts';
 import { useSuppliers } from '../hooks/useSuppliers';
+import { useOpenCashRegister } from '../hooks/useCashRegisters';
 import {
   usePurchase,
   useCreatePurchase,
@@ -18,7 +19,11 @@ import {
   PurchaseStatus,
   VoucherType,
   Currency,
+  PaymentType,
+  PaymentMethod,
   PURCHASE_STATUS_LABELS,
+  PAYMENT_TYPE_LABELS,
+  PAYMENT_METHOD_LABELS,
   type UpdatePurchasePayload,
 } from '../api/purchases';
 
@@ -50,6 +55,7 @@ export function PurchaseFormPage() {
   const updateMutation = useUpdatePurchase();
   const confirmMutation = useConfirmPurchase();
   const cancelMutation = useCancelPurchase();
+  const { data: openCashRegister } = useOpenCashRegister();
 
   const [supplierId, setSupplierId] = useState('');
   const [voucherType, setVoucherType] = useState<VoucherType>(VoucherType.Factura);
@@ -57,6 +63,9 @@ export function PurchaseFormPage() {
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [currency, setCurrency] = useState<Currency>(Currency.PEN);
   const [exchangeRate, setExchangeRate] = useState('1');
+  const [paymentType, setPaymentType] = useState<PaymentType>(PaymentType.Cash);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>(PaymentMethod.Cash);
+  const [creditDays, setCreditDays] = useState('0');
   const [observations, setObservations] = useState('');
   const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
   const [formError, setFormError] = useState('');
@@ -70,6 +79,9 @@ export function PurchaseFormPage() {
     setPurchaseDate(purchase.purchaseDate.slice(0, 10));
     setCurrency(purchase.currency);
     setExchangeRate(String(purchase.exchangeRate));
+    setPaymentType(purchase.paymentType);
+    setPaymentMethod(purchase.paymentMethod ?? PaymentMethod.Cash);
+    setCreditDays(String(purchase.creditDays ?? 0));
     setObservations(purchase.observations ?? '');
     setItems(
       purchase.items.map((i) => ({
@@ -110,6 +122,12 @@ export function PurchaseFormPage() {
       if ((Number(it.quantity) || 0) <= 0) return 'La cantidad debe ser mayor a 0.';
       if ((Number(it.unitCost) || 0) <= 0) return 'El costo unitario debe ser mayor a 0.';
     }
+    if (paymentType === PaymentType.Cash && paymentMethod === '') {
+      return 'Debe indicar el método de pago para compras al contado.';
+    }
+    if (paymentType === PaymentType.Credit) {
+      if ((Number(creditDays) || 0) <= 0) return 'Debe indicar los días de crédito para compras a crédito.';
+    }
     return null;
   };
 
@@ -121,6 +139,10 @@ export function PurchaseFormPage() {
     purchaseDate: new Date(purchaseDate).toISOString(),
     currency,
     exchangeRate: Number(exchangeRate) || 1,
+    paymentType,
+    paymentMethod:
+      paymentType === PaymentType.Cash && paymentMethod !== '' ? (paymentMethod as PaymentMethod) : null,
+    creditDays: paymentType === PaymentType.Credit ? Number(creditDays) : null,
     observations: observations.trim() || null,
     items: items.map((it) => ({
       productId: it.productId,
@@ -151,6 +173,11 @@ export function PurchaseFormPage() {
 
   const handleConfirm = async () => {
     if (!id) return;
+    // Para compras al contado, se requiere una caja abierta del usuario.
+    if (paymentType === PaymentType.Cash && openCashRegister == null) {
+      setFormError('Debe abrir una caja antes de confirmar compras al contado.');
+      return;
+    }
     if (!window.confirm('¿Confirmar esta compra? Se registrará el ingreso de stock.')) return;
     try {
       await confirmMutation.mutateAsync(id);
@@ -163,8 +190,10 @@ export function PurchaseFormPage() {
   const handleCancel = async () => {
     if (!id) return;
     if (!window.confirm('¿Cancelar esta compra?')) return;
+    const reason = window.prompt('Motivo de la cancelación (opcional):');
+    if (reason === null) return; // el usuario canceló el prompt
     try {
-      await cancelMutation.mutateAsync(id);
+      await cancelMutation.mutateAsync({ id, reason: reason.trim() || null });
       navigate('/compras');
     } catch (err: any) {
       setFormError(extractError(err));
@@ -177,6 +206,11 @@ export function PurchaseFormPage() {
   const readOnly = isEdit && purchase?.status !== PurchaseStatus.Draft;
   const isDraft = !isEdit || purchase?.status === PurchaseStatus.Draft;
   const isCancelled = purchase?.status === PurchaseStatus.Cancelled;
+
+  // Para compras al contado, se requiere una caja abierta del usuario. Si no la hay,
+  // se bloquea el botón Confirmar y se muestra un aviso con link a /caja.
+  const cashBlockedForConfirm =
+    isDraft && paymentType === PaymentType.Cash && openCashRegister == null;
 
   return (
     <div className="space-y-6">
@@ -271,6 +305,54 @@ export function PurchaseFormPage() {
           disabled={readOnly || currency === Currency.PEN}
           onChange={(e) => setExchangeRate(e.target.value)}
         />
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Tipo de pago</label>
+          <select
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={paymentType}
+            disabled={readOnly}
+            onChange={(e) => setPaymentType(Number(e.target.value) as PaymentType)}
+          >
+            {Object.values(PaymentType)
+              .filter((v) => typeof v === 'number')
+              .map((v) => (
+                <option key={v} value={v}>
+                  {PAYMENT_TYPE_LABELS[v as PaymentType]}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {paymentType === PaymentType.Cash && (
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Método de pago</label>
+            <select
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={paymentMethod}
+              disabled={readOnly}
+              onChange={(e) => setPaymentMethod(Number(e.target.value) as PaymentMethod)}
+            >
+              {Object.values(PaymentMethod)
+                .filter((v) => typeof v === 'number')
+                .map((v) => (
+                  <option key={v} value={v}>
+                    {PAYMENT_METHOD_LABELS[v as PaymentMethod]}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        {paymentType === PaymentType.Credit && (
+          <Input
+            label="Días de crédito"
+            type="number"
+            value={creditDays}
+            disabled={readOnly}
+            onChange={(e) => setCreditDays(e.target.value)}
+          />
+        )}
 
         <div className="flex flex-col gap-1 md:col-span-3">
           <label className="text-sm font-medium text-gray-700">Observaciones</label>
@@ -394,9 +476,22 @@ export function PurchaseFormPage() {
           </Button>
         )}
         {isDraft && id && (
-          <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
-            Confirmar
-          </Button>
+          <>
+            <Button
+              onClick={handleConfirm}
+              disabled={confirmMutation.isPending || cashBlockedForConfirm}
+            >
+              Confirmar
+            </Button>
+            {cashBlockedForConfirm && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de confirmar compras al contado.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
+          </>
         )}
         {!isCancelled && id && (
           <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>

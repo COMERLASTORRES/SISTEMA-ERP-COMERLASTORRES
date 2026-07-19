@@ -239,24 +239,84 @@ namespace SistemaERP.Application.Services
             }
         }
 
-        public async Task CancelAsync(Guid saleId)
+        public async Task CancelAsync(Guid saleId, Guid userId, string? reason = null)
         {
             var sale = await _saleRepository.GetByIdAsync(saleId);
             if (sale == null)
                 throw new InvalidOperationException("La venta no existe.");
 
+            // Solo se cancela una venta Confirmed. Draft se elimina con DeleteAsync;
+            // una ya Cancelled no se vuelve a cancelar.
+            if (sale.Status == SaleStatus.Draft)
+                throw new InvalidOperationException("Una venta en borrador no se cancela; debe eliminarse.");
             if (sale.Status == SaleStatus.Cancelled)
                 throw new InvalidOperationException("La venta ya está cancelada.");
 
-            // NOTA (simplificación consciente): si la venta estaba Confirmed, cancelar
-            // NO revierte el stock automáticamente por ahora. No se generan movimientos
-            // de entrada compensatorios. Esto se podría mejorar en el futuro, pero se
-            // deja fuera de alcance deliberadamente.
-            sale.Status = SaleStatus.Cancelled;
+            // Transacción: revertir stock (entrada) y, si fue al contado, el movimiento de
+            // caja (egreso inverso al ingreso original), y marcar la venta como Cancelada.
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // 1) Reversión de stock: entrada compensatoria por cada item (revierte la salida).
+                foreach (var item in sale.Items)
+                {
+                    await _stockMovementService.CreateAsync(new StockMovement
+                    {
+                        TenantId = sale.TenantId,
+                        ProductId = item.ProductId,
+                        Type = StockMovementType.Entrada,
+                        Quantity = item.Quantity,
+                        Reason = $"Reversión de venta {sale.SaleNumber}",
+                    });
+                }
 
-            _logger.LogInformation("Sale {SaleId} cancelled (status was {Status}).",
-                saleId, sale.Status);
-            await _saleRepository.UpdateAsync(sale);
+                // 2) Reversión de caja: solo si la venta fue al contado (generó un Income al
+                // confirmar). Se registra un Expense inverso por el mismo monto, enlazando el
+                // mismo SaleId (el índice único ahora incluye Type, así que Income y Expense
+                // coexisten). Las ventas a crédito no tienen movimiento de caja que revertir.
+                if (sale.PaymentType == PaymentType.Cash)
+                {
+                    var openCashRegister = await _cashRegisterService.GetOpenCashRegisterForUserAsync(
+                        sale.TenantId, userId);
+                    if (openCashRegister == null)
+                        throw new InvalidOperationException(
+                            "Debe abrir una caja antes de cancelar una venta al contado.");
+
+                    await _cashRegisterService.RegisterMovementAsync(
+                        cashRegisterId: openCashRegister.Id,
+                        type: CashMovementType.Expense,
+                        reason: MovementReason.Sale,
+                        paymentMethod: sale.PaymentMethod ?? PaymentMethod.Cash,
+                        amount: sale.Total,
+                        description: $"Reversión de venta {sale.SaleNumber}",
+                        saleId: sale.Id,
+                        userId: userId);
+                }
+
+                // 3) Marcar como cancelada con auditoría.
+                sale.Status = SaleStatus.Cancelled;
+                sale.CancelledBy = userId;
+                sale.CancelledAt = DateTime.UtcNow;
+                sale.CancellationReason = reason;
+
+                await _saleRepository.UpdateAsync(sale);
+                await _unitOfWork.CommitAsync();
+
+                _logger.LogInformation("Sale {SaleNumber} cancelled by user {UserId}. Stock and cash reverted.",
+                    sale.SaleNumber, userId);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackAsync();
+                // Propaga el mensaje real de la causa (p. ej. fallo de reversión de caja) en
+                // lugar de un genérico, para que el frontend y los logs muestren la razón exacta.
+                var inner = ex is InvalidOperationException ? ex : ex.InnerException;
+                _logger.LogError(ex, "Sale {SaleId} cancellation failed. Rolling back. Cause: {Cause}",
+                    saleId, inner?.Message);
+                throw new InvalidOperationException(
+                    inner?.Message ?? "No se pudo cancelar la venta. Se revirtió la operación (stock y caja no modificados).",
+                    ex);
+            }
         }
 
         public async Task DeleteAsync(Guid saleId)

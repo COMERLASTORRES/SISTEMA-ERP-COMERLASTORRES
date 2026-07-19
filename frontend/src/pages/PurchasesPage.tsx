@@ -68,8 +68,10 @@ export function PurchasesPage() {
 
   const handleCancel = async (p: Purchase) => {
     if (!window.confirm(`¿Cancelar la compra ${p.purchaseNumber}?`)) return;
+    const reason = window.prompt('Motivo de la cancelación (opcional):');
+    if (reason === null) return; // el usuario canceló el prompt
     try {
-      await cancelMutation.mutateAsync(p.id);
+      await cancelMutation.mutateAsync({ id: p.id, reason: reason.trim() || null });
     } catch (err: any) {
       window.alert(extractError(err));
     }

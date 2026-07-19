@@ -15,17 +15,20 @@ namespace SistemaERP.Application.Services
 
         private readonly IPurchaseRepository _purchaseRepository;
         private readonly IStockMovementService _stockMovementService;
+        private readonly ICashRegisterService _cashRegisterService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<PurchaseService> _logger;
 
         public PurchaseService(
             IPurchaseRepository purchaseRepository,
             IStockMovementService stockMovementService,
+            ICashRegisterService cashRegisterService,
             IUnitOfWork unitOfWork,
             ILogger<PurchaseService> logger)
         {
             _purchaseRepository = purchaseRepository;
             _stockMovementService = stockMovementService;
+            _cashRegisterService = cashRegisterService;
             _unitOfWork = unitOfWork;
             _logger = logger;
         }
@@ -43,9 +46,14 @@ namespace SistemaERP.Application.Services
         public async Task<Purchase> CreateDraftAsync(Purchase purchase)
         {
             ValidateItems(purchase);
+            ValidatePaymentTerms(purchase);
 
             purchase.PurchaseNumber = await GenerateNextPurchaseNumberAsync(purchase.TenantId);
             RecalculateTotals(purchase);
+            CalculateDueDate(purchase);
+            purchase.PaymentStatus = purchase.PaymentType == PaymentType.Cash
+                ? PaymentStatus.Paid
+                : PaymentStatus.Pending;
             purchase.Status = PurchaseStatus.Draft;
 
             _logger.LogInformation("Creating purchase draft {PurchaseNumber} for tenant {TenantId}.",
@@ -65,6 +73,7 @@ namespace SistemaERP.Application.Services
                     "Solo se puede editar una compra en estado Borrador (Draft).");
 
             ValidateItems(purchase);
+            ValidatePaymentTerms(purchase);
 
             // Mantener el número y la fecha de creación originales.
             existing.SupplierId = purchase.SupplierId;
@@ -74,6 +83,9 @@ namespace SistemaERP.Application.Services
             existing.PurchaseDate = purchase.PurchaseDate;
             existing.Currency = purchase.Currency;
             existing.ExchangeRate = purchase.ExchangeRate;
+            existing.PaymentType = purchase.PaymentType;
+            existing.PaymentMethod = purchase.PaymentMethod;
+            existing.CreditDays = purchase.CreditDays;
             existing.Observations = purchase.Observations;
 
             // Reemplazar los items: se eliminan los previos y se agregan los nuevos.
@@ -91,6 +103,10 @@ namespace SistemaERP.Application.Services
             }
 
             RecalculateTotals(existing);
+            CalculateDueDate(existing);
+            existing.PaymentStatus = existing.PaymentType == PaymentType.Cash
+                ? PaymentStatus.Paid
+                : PaymentStatus.Pending;
 
             _logger.LogInformation("Updating purchase draft {PurchaseId}.", existing.Id);
             return await _purchaseRepository.UpdateAsync(existing);
@@ -106,7 +122,20 @@ namespace SistemaERP.Application.Services
                 throw new InvalidOperationException(
                     "Solo se puede confirmar una compra en estado Borrador (Draft).");
 
-            // Transacción: registrar entradas de stock y confirmar la compra de forma atómica.
+            // Para compras al contado, la caja abierta es pre-requisito. Se resuelve ANTES
+            // de tocar el stock para fallar temprano sin efectos parciales.
+            CashRegister? openCashRegister = null;
+            if (purchase.PaymentType == PaymentType.Cash)
+            {
+                openCashRegister = await _cashRegisterService.GetOpenCashRegisterForUserAsync(
+                    purchase.TenantId, userId);
+                if (openCashRegister == null)
+                    throw new InvalidOperationException(
+                        "Debe abrir una caja antes de confirmar compras al contado.");
+            }
+
+            // Transacción: registrar entradas de stock, el movimiento de caja (si aplica) y
+            // confirmar la compra de forma atómica.
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -120,6 +149,21 @@ namespace SistemaERP.Application.Services
                         Quantity = item.Quantity,
                         Reason = $"Compra {purchase.PurchaseNumber}",
                     });
+                }
+
+                // Egreso de caja para compras al contado (después de registrar el ingreso de stock).
+                if (purchase.PaymentType == PaymentType.Cash && openCashRegister != null)
+                {
+                    await _cashRegisterService.RegisterMovementAsync(
+                        cashRegisterId: openCashRegister.Id,
+                        type: CashMovementType.Expense,
+                        reason: MovementReason.SupplierPayment,
+                        paymentMethod: purchase.PaymentMethod ?? PaymentMethod.Cash,
+                        amount: purchase.Total,
+                        description: $"Compra {purchase.PurchaseNumber}",
+                        saleId: null,
+                        userId: userId,
+                        purchaseId: purchase.Id);
                 }
 
                 purchase.Status = PurchaseStatus.Confirmed;
@@ -141,24 +185,84 @@ namespace SistemaERP.Application.Services
             }
         }
 
-        public async Task CancelAsync(Guid purchaseId)
+        public async Task CancelAsync(Guid purchaseId, Guid userId, string? reason = null)
         {
             var purchase = await _purchaseRepository.GetByIdAsync(purchaseId);
             if (purchase == null)
                 throw new InvalidOperationException("La compra no existe.");
 
+            // Solo se cancela una compra Confirmed. Draft se elimina con DeleteAsync;
+            // una ya Cancelled no se vuelve a cancelar.
+            if (purchase.Status == PurchaseStatus.Draft)
+                throw new InvalidOperationException("Una compra en borrador no se cancela; debe eliminarse.");
             if (purchase.Status == PurchaseStatus.Cancelled)
                 throw new InvalidOperationException("La compra ya está cancelada.");
 
-            // NOTA (simplificación consciente): si la compra estaba Confirmed, cancelar
-            // NO revierte el stock automáticamente por ahora. No se generan movimientos
-            // de reversión. Esto se podría mejorar en el futuro con movimientos de salida
-            // compensatorios, pero se deja fuera de alcance deliberadamente.
-            purchase.Status = PurchaseStatus.Cancelled;
+            // Transacción: revertir stock (salida) y, si fue al contado, el movimiento de
+            // caja (ingreso inverso al egreso original), y marcar la compra como Cancelada.
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // 1) Reversión de stock: salida compensatoria por cada item (revierte la entrada).
+                foreach (var item in purchase.Items)
+                {
+                    await _stockMovementService.CreateAsync(new StockMovement
+                    {
+                        TenantId = purchase.TenantId,
+                        ProductId = item.ProductId,
+                        Type = StockMovementType.Salida,
+                        Quantity = item.Quantity,
+                        Reason = $"Reversión de compra {purchase.PurchaseNumber}",
+                    });
+                }
 
-            _logger.LogInformation("Purchase {PurchaseId} cancelled (status was {Status}).",
-                purchaseId, purchase.Status);
-            await _purchaseRepository.UpdateAsync(purchase);
+                // 2) Reversión de caja: solo si la compra fue al contado (generó un Expense al
+                // confirmar). Se registra un Income inverso por el mismo monto, enlazando el
+                // mismo PurchaseId (el índice único ahora incluye Type, así que Expense e Income
+                // coexisten). Las compras a crédito no tienen movimiento de caja que revertir.
+                if (purchase.PaymentType == PaymentType.Cash)
+                {
+                    var openCashRegister = await _cashRegisterService.GetOpenCashRegisterForUserAsync(
+                        purchase.TenantId, userId);
+                    if (openCashRegister == null)
+                        throw new InvalidOperationException(
+                            "Debe abrir una caja antes de cancelar una compra al contado.");
+
+                    await _cashRegisterService.RegisterMovementAsync(
+                        cashRegisterId: openCashRegister.Id,
+                        type: CashMovementType.Income,
+                        reason: MovementReason.SupplierPayment,
+                        paymentMethod: purchase.PaymentMethod ?? PaymentMethod.Cash,
+                        amount: purchase.Total,
+                        description: $"Reversión de compra {purchase.PurchaseNumber}",
+                        purchaseId: purchase.Id,
+                        userId: userId);
+                }
+
+                // 3) Marcar como cancelada con auditoría.
+                purchase.Status = PurchaseStatus.Cancelled;
+                purchase.CancelledBy = userId;
+                purchase.CancelledAt = DateTime.UtcNow;
+                purchase.CancellationReason = reason;
+
+                await _purchaseRepository.UpdateAsync(purchase);
+                await _unitOfWork.CommitAsync();
+
+                _logger.LogInformation("Purchase {PurchaseNumber} cancelled by user {UserId}. Stock and cash reverted.",
+                    purchase.PurchaseNumber, userId);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackAsync();
+                // Propaga el mensaje real de la causa (p. ej. fallo de reversión de caja) en
+                // lugar de un genérico, para que el frontend y los logs muestren la razón exacta.
+                var inner = ex is InvalidOperationException ? ex : ex.InnerException;
+                _logger.LogError(ex, "Purchase {PurchaseId} cancellation failed. Rolling back. Cause: {Cause}",
+                    purchaseId, inner?.Message);
+                throw new InvalidOperationException(
+                    inner?.Message ?? "No se pudo cancelar la compra. Se revirtió la operación (stock y caja no modificados).",
+                    ex);
+            }
         }
 
         public async Task DeleteAsync(Guid purchaseId)
@@ -218,6 +322,28 @@ namespace SistemaERP.Application.Services
                     throw new InvalidOperationException("La cantidad debe ser mayor a cero en todos los items.");
                 if (item.UnitCost <= 0)
                     throw new InvalidOperationException("El costo unitario debe ser mayor a cero en todos los items.");
+            }
+        }
+
+        private static void ValidatePaymentTerms(Purchase purchase)
+        {
+            if (purchase.PaymentType == PaymentType.Cash && purchase.PaymentMethod == null)
+                throw new InvalidOperationException("Debe indicar el método de pago para compras al contado.");
+
+            if (purchase.PaymentType == PaymentType.Credit &&
+                (!purchase.CreditDays.HasValue || purchase.CreditDays.Value <= 0))
+                throw new InvalidOperationException("Debe indicar los días de crédito para compras a crédito.");
+        }
+
+        private static void CalculateDueDate(Purchase purchase)
+        {
+            if (purchase.PaymentType == PaymentType.Credit && purchase.CreditDays.HasValue)
+            {
+                purchase.DueDate = purchase.PurchaseDate.AddDays(purchase.CreditDays.Value);
+            }
+            else
+            {
+                purchase.DueDate = null;
             }
         }
     }

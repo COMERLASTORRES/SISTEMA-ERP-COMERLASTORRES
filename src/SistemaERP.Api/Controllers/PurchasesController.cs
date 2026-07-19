@@ -136,11 +136,14 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Purchases/{id}/cancel
         [HttpPost("{id}/cancel")]
-        public async Task<IActionResult> Cancel(Guid id)
+        public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelDto dto)
         {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
+
             try
             {
-                await _purchaseService.CancelAsync(id);
+                await _purchaseService.CancelAsync(id, userId, dto?.Reason);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -176,6 +179,9 @@ namespace SistemaERP.Api.Controllers
                 PurchaseDate = dto.PurchaseDate,
                 Currency = (Currency)dto.Currency,
                 ExchangeRate = dto.ExchangeRate,
+                PaymentType = (PaymentType)dto.PaymentType,
+                PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod)dto.PaymentMethod.Value : null,
+                CreditDays = dto.CreditDays,
                 Observations = dto.Observations,
                 Items = dto.Items.Select(i => new PurchaseItem
                 {

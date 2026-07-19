@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { useProducts } from '../hooks/useProducts';
 import { useSuppliers } from '../hooks/useSuppliers';
+import { useOpenCashRegister } from '../hooks/useCashRegisters';
 import {
   usePurchase,
   useConfirmPurchase,
@@ -14,7 +15,11 @@ import {
   PurchaseStatus,
   VoucherType,
   Currency,
+  PaymentType,
   PURCHASE_STATUS_LABELS,
+  PAYMENT_TYPE_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PURCHASE_PAYMENT_STATUS_LABELS,
   type Purchase,
 } from '../api/purchases';
 
@@ -43,6 +48,12 @@ export function PurchaseDetailPage() {
   const { data: purchase, isLoading, isError, error } = usePurchase(id);
   const confirmMutation = useConfirmPurchase();
   const cancelMutation = useCancelPurchase();
+  const { data: openCashRegister } = useOpenCashRegister();
+
+  // Para compras al contado, cancelar genera un ingreso de caja inverso, por lo que
+  // requiere una caja abierta del usuario (igual que confirmar). Crédito no aplica.
+  const cashBlockedForCancel =
+    purchase?.paymentType === PaymentType.Cash && openCashRegister == null;
 
   const supplierName = (sid: string) => suppliers.find((s) => s.id === sid)?.name ?? sid;
   const productName = (pid: string) => products.find((p) => p.id === pid)?.name ?? pid;
@@ -60,8 +71,10 @@ export function PurchaseDetailPage() {
   const handleCancel = async () => {
     if (!id) return;
     if (!window.confirm('¿Cancelar esta compra?')) return;
+    const reason = window.prompt('Motivo de la cancelación (opcional):');
+    if (reason === null) return; // el usuario canceló el prompt
     try {
-      await cancelMutation.mutateAsync(id);
+      await cancelMutation.mutateAsync({ id, reason: reason.trim() || null });
     } catch (err: any) {
       window.alert(extractError(err));
     }
@@ -87,7 +100,44 @@ export function PurchaseDetailPage() {
         <Field label="Fecha" value={new Date(purchase.purchaseDate).toLocaleDateString('es-PE')} />
         <Field label="Moneda" value={purchase.currency === Currency.PEN ? 'PEN (S/)' : 'USD ($)'} />
         <Field label="Tipo de cambio" value={String(purchase.exchangeRate)} />
+        <Field label="Tipo de pago" value={PAYMENT_TYPE_LABELS[purchase.paymentType]} />
+        <Field
+          label="Método de pago"
+          value={
+            purchase.paymentType === PaymentType.Cash
+              ? purchase.paymentMethod != null
+                ? PAYMENT_METHOD_LABELS[purchase.paymentMethod]
+                : '—'
+              : '—'
+          }
+        />
+        <Field
+          label="Días de crédito"
+          value={purchase.paymentType === PaymentType.Credit ? `${purchase.creditDays ?? 0} días` : '—'}
+        />
+        <Field
+          label="Fecha de vencimiento"
+          value={
+            purchase.paymentType === PaymentType.Credit && purchase.dueDate
+              ? new Date(purchase.dueDate).toLocaleDateString('es-PE')
+              : '—'
+          }
+        />
+        <Field
+          label="Estado de pago"
+          value={PURCHASE_PAYMENT_STATUS_LABELS[purchase.paymentStatus]}
+        />
         <Field label="Observaciones" value={purchase.observations ?? '—'} />
+        {purchase.status === PurchaseStatus.Cancelled && (
+          <>
+            <Field label="Motivo de cancelación" value={purchase.cancellationReason ?? '—'} />
+            <Field label="Cancelado por" value={purchase.cancelledBy ?? '—'} />
+            <Field
+              label="Fecha de cancelación"
+              value={purchase.cancelledAt ? new Date(purchase.cancelledAt).toLocaleString('es-PE') : '—'}
+            />
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-5">
@@ -127,15 +177,41 @@ export function PurchaseDetailPage() {
             <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
               Confirmar
             </Button>
-            <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
+            <Button
+              variant="danger"
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending || cashBlockedForCancel}
+            >
               Cancelar
             </Button>
+            {cashBlockedForCancel && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de cancelar compras al contado.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
           </>
         )}
         {purchase.status === PurchaseStatus.Confirmed && (
-          <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
-            Cancelar
-          </Button>
+          <>
+            <Button
+              variant="danger"
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending || cashBlockedForCancel}
+            >
+              Cancelar
+            </Button>
+            {cashBlockedForCancel && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de cancelar compras al contado.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
+          </>
         )}
         <Button variant="secondary" onClick={() => navigate('/compras')}>
           Volver

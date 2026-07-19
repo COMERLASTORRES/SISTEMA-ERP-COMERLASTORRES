@@ -171,11 +171,14 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Sales/{id}/cancel
         [HttpPost("{id}/cancel")]
-        public async Task<IActionResult> Cancel(Guid id)
+        public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelDto dto)
         {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
+
             try
             {
-                await _saleService.CancelAsync(id);
+                await _saleService.CancelAsync(id, userId, dto?.Reason);
                 return NoContent();
             }
             catch (InvalidOperationException ex)

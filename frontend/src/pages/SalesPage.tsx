@@ -67,8 +67,10 @@ export function SalesPage() {
 
   const handleCancel = async (s: Sale) => {
     if (!window.confirm(`¿Cancelar la venta ${s.saleNumber}?`)) return;
+    const reason = window.prompt('Motivo de la cancelación (opcional):');
+    if (reason === null) return; // el usuario canceló el prompt
     try {
-      await cancelMutation.mutateAsync(s.id);
+      await cancelMutation.mutateAsync({ id: s.id, reason: reason.trim() || null });
     } catch (err: any) {
       window.alert(extractError(err));
     }

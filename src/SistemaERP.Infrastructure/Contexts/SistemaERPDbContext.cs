@@ -244,17 +244,34 @@ public class SistemaERPDbContext : DbContext
             .HasForeignKey(m => m.SaleId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // CashMovement -> Purchase (Restrict, nullable: a movement may not be linked to a
+        // purchase). Espejo de la relación con Sale para trazabilidad simétrica.
+        modelBuilder.Entity<CashMovement>()
+            .HasOne<Purchase>()
+            .WithMany()
+            .HasForeignKey(m => m.PurchaseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Monetary precision for the cash movement amount.
         modelBuilder.Entity<CashMovement>()
             .Property(m => m.Amount).HasColumnType("decimal(18,2)");
 
-        // Partial unique index: at most one movement per (CashRegister, Sale) when SaleId
-        // is present (PostgreSQL partial index via HasFilter). Prevents double-linking a
-        // sale to the same register more than once.
+        // Partial unique index: at most one movement per (CashRegister, Sale, Type) when
+        // SaleId is present (PostgreSQL partial index via HasFilter). Impide duplicar dos
+        // movimientos del MISMO Type para la misma venta en la misma caja (ej. dos Income),
+        // pero permite el movimiento de reversión (Type opuesto) para la misma venta.
         modelBuilder.Entity<CashMovement>()
-            .HasIndex(m => new { m.CashRegisterId, m.SaleId })
+            .HasIndex(m => new { m.CashRegisterId, m.SaleId, m.Type })
             .IsUnique()
             .HasFilter("\"SaleId\" IS NOT NULL");
+
+        // Partial unique index espejo para Purchase: a lo sumo un movimiento por
+        // (CashRegister, Purchase, Type) cuando PurchaseId está presente. Misma lógica:
+        // protege contra duplicados del mismo Type pero permite la reversión (Type opuesto).
+        modelBuilder.Entity<CashMovement>()
+            .HasIndex(m => new { m.CashRegisterId, m.PurchaseId, m.Type })
+            .IsUnique()
+            .HasFilter("\"PurchaseId\" IS NOT NULL");
 
         base.OnModelCreating(modelBuilder);
     }

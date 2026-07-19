@@ -26,6 +26,6 @@ public interface ISaleService
     Task<Sale> UpdateDraftAsync(Sale sale);
     Task<StockValidationResult> ValidateStockAsync(Guid tenantId, IEnumerable<SaleItem> items);
     Task ConfirmAsync(Guid saleId, Guid userId);
-    Task CancelAsync(Guid saleId);
+    Task CancelAsync(Guid saleId, Guid userId, string? reason = null);
     Task DeleteAsync(Guid saleId);
 }

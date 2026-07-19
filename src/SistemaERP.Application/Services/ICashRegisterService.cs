@@ -16,7 +16,8 @@ public interface ICashRegisterService
         decimal amount,
         string description,
         Guid? saleId = null,
-        Guid? userId = null);
+        Guid? userId = null,
+        Guid? purchaseId = null);
     Task<CashRegister?> GetOpenCashRegisterForUserAsync(Guid tenantId, Guid userId);
     Task<IReadOnlyList<CashRegister>> GetAllAsync(int page = 1, int pageSize = 10);
     Task<CashRegister?> GetByIdAsync(Guid id);

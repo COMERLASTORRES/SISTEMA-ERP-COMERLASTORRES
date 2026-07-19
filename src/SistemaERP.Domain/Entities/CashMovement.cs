@@ -30,6 +30,11 @@ public class CashMovement : AuditableEntity
 
     public Guid? SaleId { get; set; }
 
+    /// <summary>Vincula el movimiento a una compra cuando aplica (ej. egreso por compra
+    /// al contado a proveedor). NULL para movimientos no origen de compra. Espejo de SaleId
+    /// para mantener trazabilidad simétrica entre Ventas y Compras.</summary>
+    public Guid? PurchaseId { get; set; }
+
     public Guid? CreatedBy { get; set; }
 }
 

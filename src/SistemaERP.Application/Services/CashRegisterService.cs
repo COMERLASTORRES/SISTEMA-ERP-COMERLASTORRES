@@ -89,7 +89,8 @@ namespace SistemaERP.Application.Services
             decimal amount,
             string description,
             Guid? saleId = null,
-            Guid? userId = null)
+            Guid? userId = null,
+            Guid? purchaseId = null)
         {
             var register = await _cashRegisterRepository.GetByIdAsync(cashRegisterId);
             if (register == null)
@@ -101,13 +102,23 @@ namespace SistemaERP.Application.Services
             if (amount <= 0)
                 throw new InvalidOperationException("El monto del movimiento debe ser mayor a cero.");
 
-            // Validación previa del índice único parcial (CashRegisterId, SaleId): evita
-            // que la BD falle con excepción. Da un mensaje claro antes de insertar.
+            // Validación previa del índice único parcial (CashRegisterId, SaleId, Type): evita
+            // que la BD falle con excepción. Debe coincidir con el índice, por lo que se compara
+            // también por Type: permite el movimiento de reversión (Type opuesto) para la misma
+            // venta/compra, pero sigue bloqueando dos movimientos del MISMO Type (ej. dos Income).
             if (saleId.HasValue &&
-                register.Movements.Any(m => m.SaleId == saleId.Value))
+                register.Movements.Any(m => m.SaleId == saleId.Value && m.Type == type))
             {
                 throw new InvalidOperationException(
-                    "Ya existe un movimiento de caja registrado para esta venta en esta caja.");
+                    "Ya existe un movimiento de caja del mismo tipo registrado para esta venta en esta caja.");
+            }
+
+            // Lo mismo para PurchaseId, coherente con su índice (CashRegisterId, PurchaseId, Type).
+            if (purchaseId.HasValue &&
+                register.Movements.Any(m => m.PurchaseId == purchaseId.Value && m.Type == type))
+            {
+                throw new InvalidOperationException(
+                    "Ya existe un movimiento de caja del mismo tipo registrado para esta compra en esta caja.");
             }
 
             var movement = new CashMovement
@@ -119,6 +130,7 @@ namespace SistemaERP.Application.Services
                 Amount = amount,
                 Description = description,
                 SaleId = saleId,
+                PurchaseId = purchaseId,
                 CreatedBy = userId,
             };
 
