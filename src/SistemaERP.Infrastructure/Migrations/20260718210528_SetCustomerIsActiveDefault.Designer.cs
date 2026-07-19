@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SistemaERP.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using SistemaERP.Infrastructure.Contexts;
 namespace SistemaERP.Infrastructure.Migrations
 {
     [DbContext(typeof(SistemaERPDbContext))]
-    partial class SistemaERPDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260718210528_SetCustomerIsActiveDefault")]
+    partial class SetCustomerIsActiveDefault
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -213,60 +216,6 @@ namespace SistemaERP.Infrastructure.Migrations
                     b.HasIndex("TenantId", "ProductId");
 
                     b.ToTable("StockMovements");
-                });
-
-            modelBuilder.Entity("SistemaERP.Domain.Entities.Supplier", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Address")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ContactPerson")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DocumentNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("DocumentType")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Email")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("PaymentTermDays")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Phone")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "DocumentNumber")
-                        .IsUnique();
-
-                    b.ToTable("Suppliers");
                 });
 
             modelBuilder.Entity("SistemaERP.Domain.Entities.Tenant", b =>

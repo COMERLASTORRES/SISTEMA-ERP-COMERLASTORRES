@@ -19,6 +19,7 @@ public class SistemaERPDbContext : DbContext
     public DbSet<Tenant> Tenants { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Customer> Customers { get; set; } = null!;
+    public DbSet<Supplier> Suppliers { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -83,9 +84,27 @@ public class SistemaERPDbContext : DbContext
         // Customer multi-tenant query filter (soft-delete via IsActive)
         modelBuilder.Entity<Customer>().HasQueryFilter(c => c.IsActive && c.TenantId == _tenantProvider.GetTenantId());
 
+        // IsActive defaults to true so inserts without the field do not fail NOT NULL
+        modelBuilder.Entity<Customer>()
+            .Property(c => c.IsActive)
+            .HasDefaultValue(true);
+
         // DocumentNumber is unique per tenant
         modelBuilder.Entity<Customer>()
             .HasIndex(c => new { c.TenantId, c.DocumentNumber })
+            .IsUnique();
+
+        // Supplier multi-tenant query filter (soft-delete via IsActive)
+        modelBuilder.Entity<Supplier>().HasQueryFilter(s => s.IsActive && s.TenantId == _tenantProvider.GetTenantId());
+
+        // IsActive defaults to true so inserts without the field do not fail NOT NULL
+        modelBuilder.Entity<Supplier>()
+            .Property(s => s.IsActive)
+            .HasDefaultValue(true);
+
+        // DocumentNumber is unique per tenant
+        modelBuilder.Entity<Supplier>()
+            .HasIndex(s => new { s.TenantId, s.DocumentNumber })
             .IsUnique();
 
         base.OnModelCreating(modelBuilder);
