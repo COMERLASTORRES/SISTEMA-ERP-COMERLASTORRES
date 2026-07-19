@@ -6,6 +6,7 @@ const menuItems = [
   { to: '/categorias', label: 'Categorías', icon: '🏷️' },
   { to: '/clientes', label: 'Clientes', icon: '👥' },
   { to: '/proveedores', label: 'Proveedores', icon: '🏢' },
+  { to: '/compras', label: 'Compras', icon: '🧾' },
   { to: '/stock', label: 'Movimientos de Stock', icon: '📈' },
 ];
 

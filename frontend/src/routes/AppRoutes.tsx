@@ -7,6 +7,9 @@ import { ProductsPage } from '../pages/ProductsPage';
 import { CustomersPage } from '../pages/CustomersPage';
 import { SuppliersPage } from '../pages/SuppliersPage';
 import { StockMovementsPage } from '../pages/StockMovementsPage';
+import { PurchasesPage } from '../pages/PurchasesPage';
+import { PurchaseFormPage } from '../pages/PurchaseFormPage';
+import { PurchaseDetailPage } from '../pages/PurchaseDetailPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export function AppRoutes() {
@@ -22,6 +25,10 @@ export function AppRoutes() {
             <Route path="/clientes" element={<CustomersPage />} />
             <Route path="/proveedores" element={<SuppliersPage />} />
             <Route path="/stock" element={<StockMovementsPage />} />
+            <Route path="/compras" element={<PurchasesPage />} />
+            <Route path="/compras/nueva" element={<PurchaseFormPage />} />
+            <Route path="/compras/:id" element={<PurchaseDetailPage />} />
+            <Route path="/compras/:id/editar" element={<PurchaseFormPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
