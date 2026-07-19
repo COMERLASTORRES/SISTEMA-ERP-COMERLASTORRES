@@ -121,6 +121,16 @@ namespace SistemaERP.Application.Services
             return user;
         }
 
+        public Task<IReadOnlyList<User>> GetAllByTenantAsync(Guid tenantId)
+        {
+            return _userRepository.GetAllByTenantAsync(tenantId);
+        }
+
+        public Task<User?> GetByIdWithRolesAsync(Guid userId)
+        {
+            return _userRepository.GetByIdWithRolesAsync(userId);
+        }
+
         // Reemplaza el set completo de roles del usuario.
         public async Task AssignRolesAsync(Guid userId, IEnumerable<Guid> roleIds)
         {
@@ -158,6 +168,43 @@ namespace SistemaERP.Application.Services
                 .OrderBy(p => p.Module)
                 .ThenBy(p => p.Code)
                 .ToList();
+        }
+
+        // Crea un usuario adicional dentro de un tenant existente (no crea tenant nuevo).
+        public async Task<User> CreateUserAsync(Guid tenantId, string email, string password, string fullName)
+        {
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+                throw new InvalidOperationException("Email y contraseña son requeridos.");
+
+            var existing = await _userRepository.GetByEmailAsync(email);
+            if (existing != null)
+                throw new InvalidOperationException("Ya existe un usuario con este email.");
+
+            var user = new User
+            {
+                TenantId = tenantId,
+                Email = email.Trim(),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                FullName = fullName.Trim(),
+                Role = "Employee",
+                IsActive = true,
+            };
+
+            _logger.LogInformation("Creating user {Email} for tenant {TenantId}.", user.Email, tenantId);
+            return await _userRepository.AddAsync(user);
+        }
+
+        // Actualiza datos básicos del usuario (nombre y estado activo).
+        public async Task<User> UpdateUserAsync(Guid userId, string fullName, bool isActive)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null) throw new InvalidOperationException("El usuario no existe.");
+
+            user.FullName = fullName.Trim();
+            user.IsActive = isActive;
+
+            _logger.LogInformation("Updating user {UserId}.", userId);
+            return await _userRepository.UpdateAsync(user);
         }
     }
 }

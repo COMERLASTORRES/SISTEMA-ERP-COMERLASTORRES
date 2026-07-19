@@ -27,6 +27,13 @@ namespace SistemaERP.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<bool> ExistsByNameAsync(Guid tenantId, string name)
+        {
+            return await _context.Roles
+                .AsNoTracking()
+                .AnyAsync(r => r.TenantId == tenantId && r.Name == name);
+        }
+
         public async Task<Role?> GetByIdAsync(Guid id)
         {
             return await _context.Roles.FindAsync(id);

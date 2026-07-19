@@ -104,6 +104,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Aplica migraciones pendientes y seed del catálogo de permisos al iniciar. Sin esta
+// llamada el PermissionSeed nunca corre y la tabla Permissions queda vacía, dejando el
+// formulario de roles sin checkboxes que mostrar. Idempotente: no duplica permisos.
+using (var scope = app.Services.CreateScope())
+{
+    var initializer = scope.ServiceProvider.GetRequiredService<SistemaERP.Infrastructure.DependencyInjection.DbInitializer>();
+    await initializer.InitializeAsync();
+}
+
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();

@@ -8,6 +8,7 @@ namespace SistemaERP.Application.Repositories;
 public interface IRoleRepository
 {
     Task<IReadOnlyList<Role>> GetAllByTenantAsync(Guid tenantId);
+    Task<bool> ExistsByNameAsync(Guid tenantId, string name);
     Task<Role?> GetByIdAsync(Guid id);
     Task<Role?> GetByIdWithPermissionsAsync(Guid id);
     Task<int> GetUserCountAsync(Guid roleId);

@@ -39,6 +39,11 @@ namespace SistemaERP.Application.Services
             if (string.IsNullOrWhiteSpace(name))
                 throw new InvalidOperationException("El nombre del rol es obligatorio.");
 
+            // Validación previa para devolver un mensaje claro en vez de la excepción cruda
+            // de unicidad de la base de datos (IX_Roles_TenantId_Name) si el nombre ya existe.
+            if (await _roleRepository.ExistsByNameAsync(tenantId, name.Trim()))
+                throw new InvalidOperationException($"Ya existe un rol con el nombre '{name.Trim()}' en este negocio.");
+
             var role = new Role
             {
                 TenantId = tenantId,

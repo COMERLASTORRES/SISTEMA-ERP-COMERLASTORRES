@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICashRegisterRepository, CashRegisterRepository>();
         services.AddScoped<ICashRegisterService, CashRegisterService>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();

@@ -16,6 +16,10 @@ import { SaleDetailPage } from '../pages/SaleDetailPage';
 import { CashRegisterPage } from '../pages/CashRegisterPage';
 import { CashRegisterHistoryPage } from '../pages/CashRegisterHistoryPage';
 import { CashRegisterDetailPage } from '../pages/CashRegisterDetailPage';
+import { RolesPage } from '../pages/RolesPage';
+import { RoleFormPage } from '../pages/RoleFormPage';
+import { UsersPage } from '../pages/UsersPage';
+import { UserFormPage } from '../pages/UserFormPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export function AppRoutes() {
@@ -42,6 +46,12 @@ export function AppRoutes() {
             <Route path="/caja" element={<CashRegisterPage />} />
             <Route path="/caja/historial" element={<CashRegisterHistoryPage />} />
             <Route path="/caja/:id" element={<CashRegisterDetailPage />} />
+            <Route path="/roles" element={<RolesPage />} />
+            <Route path="/roles/nueva" element={<RoleFormPage />} />
+            <Route path="/roles/:id/editar" element={<RoleFormPage />} />
+            <Route path="/usuarios" element={<UsersPage />} />
+            <Route path="/usuarios/nueva" element={<UserFormPage />} />
+            <Route path="/usuarios/:id/editar" element={<UserFormPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

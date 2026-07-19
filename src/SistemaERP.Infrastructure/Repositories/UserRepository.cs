@@ -21,6 +21,15 @@ namespace SistemaERP.Infrastructure.Repositories
             return await _context.Users.AsNoTracking().ToListAsync();
         }
 
+        public async Task<IReadOnlyList<User>> GetAllByTenantAsync(Guid tenantId)
+        {
+            return await _context.Users
+                .AsNoTracking()
+                .Where(u => u.TenantId == tenantId)
+                .OrderBy(u => u.FullName)
+                .ToListAsync();
+        }
+
         public async Task<User?> GetByIdAsync(Guid id)
         {
             return await _context.Users.FindAsync(id);
@@ -54,10 +63,11 @@ namespace SistemaERP.Infrastructure.Repositories
             return entity.Entity;
         }
 
-        public async Task UpdateAsync(User user)
+        public async Task<User> UpdateAsync(User user)
         {
             _context.Users.Update(user);
             await _context.SaveChangesAsync();
+            return user;
         }
     }
 }
