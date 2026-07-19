@@ -22,6 +22,8 @@ public class SistemaERPDbContext : DbContext
     public DbSet<Supplier> Suppliers { get; set; } = null!;
     public DbSet<Purchase> Purchases { get; set; } = null!;
     public DbSet<PurchaseItem> PurchaseItems { get; set; } = null!;
+    public DbSet<Sale> Sales { get; set; } = null!;
+    public DbSet<SaleItem> SaleItems { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -138,6 +140,67 @@ public class SistemaERPDbContext : DbContext
             .WithMany()
             .HasForeignKey(i => i.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Sale multi-tenant query filter (the header is tenant-scoped; items are
+        // filtered indirectly through their parent Sale).
+        modelBuilder.Entity<Sale>().HasQueryFilter(s => s.TenantId == _tenantProvider.GetTenantId());
+
+        // SaleNumber is unique per tenant.
+        modelBuilder.Entity<Sale>()
+            .HasIndex(s => new { s.TenantId, s.SaleNumber })
+            .IsUnique();
+
+        // Simple indexes for the most common lookups/filters.
+        modelBuilder.Entity<Sale>().HasIndex(s => s.SaleNumber);
+        modelBuilder.Entity<Sale>().HasIndex(s => s.SaleDate);
+        modelBuilder.Entity<Sale>().HasIndex(s => s.CustomerId);
+        modelBuilder.Entity<Sale>().HasIndex(s => s.Status);
+        modelBuilder.Entity<Sale>().HasIndex(s => s.PaymentStatus);
+        modelBuilder.Entity<Sale>().HasIndex(s => s.TenantId);
+
+        // Sale -> Customer (Restrict: keep sale history even if the customer is deactivated).
+        modelBuilder.Entity<Sale>()
+            .HasOne<Customer>()
+            .WithMany()
+            .HasForeignKey(s => s.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Sale has many SaleItems; deleting a Sale cascades to its items.
+        modelBuilder.Entity<Sale>()
+            .HasMany(s => s.Items)
+            .WithOne()
+            .HasForeignKey(i => i.SaleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Monetary precision for the header totals.
+        modelBuilder.Entity<Sale>()
+            .Property(s => s.Subtotal).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<Sale>()
+            .Property(s => s.Tax).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<Sale>()
+            .Property(s => s.Total).HasColumnType("decimal(18,2)");
+
+        // SaleItem -> Product (Restrict: don't delete a product that has sale lines).
+        modelBuilder.Entity<SaleItem>()
+            .HasOne<Product>()
+            .WithMany()
+            .HasForeignKey(i => i.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Monetary precision for the item (historical price snapshot). All values are
+        // frozen at sale time, so they use the same fixed scale as the header totals.
+        modelBuilder.Entity<SaleItem>()
+            .Property(i => i.UnitPrice).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<SaleItem>()
+            .Property(i => i.DiscountPercentage).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<SaleItem>()
+            .Property(i => i.TaxPercentage).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<SaleItem>()
+            .Property(i => i.LineSubtotal).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<SaleItem>()
+            .Property(i => i.LineTax).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<SaleItem>()
+            .Property(i => i.LineTotal).HasColumnType("decimal(18,2)");
 
         base.OnModelCreating(modelBuilder);
     }

@@ -10,6 +10,9 @@ import { StockMovementsPage } from '../pages/StockMovementsPage';
 import { PurchasesPage } from '../pages/PurchasesPage';
 import { PurchaseFormPage } from '../pages/PurchaseFormPage';
 import { PurchaseDetailPage } from '../pages/PurchaseDetailPage';
+import { SalesPage } from '../pages/SalesPage';
+import { SaleFormPage } from '../pages/SaleFormPage';
+import { SaleDetailPage } from '../pages/SaleDetailPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export function AppRoutes() {
@@ -29,6 +32,10 @@ export function AppRoutes() {
             <Route path="/compras/nueva" element={<PurchaseFormPage />} />
             <Route path="/compras/:id" element={<PurchaseDetailPage />} />
             <Route path="/compras/:id/editar" element={<PurchaseFormPage />} />
+            <Route path="/ventas" element={<SalesPage />} />
+            <Route path="/ventas/nueva" element={<SaleFormPage />} />
+            <Route path="/ventas/:id" element={<SaleDetailPage />} />
+            <Route path="/ventas/:id/editar" element={<SaleFormPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

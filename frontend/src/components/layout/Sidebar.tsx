@@ -7,6 +7,7 @@ const menuItems = [
   { to: '/clientes', label: 'Clientes', icon: '👥' },
   { to: '/proveedores', label: 'Proveedores', icon: '🏢' },
   { to: '/compras', label: 'Compras', icon: '🧾' },
+  { to: '/ventas', label: 'Ventas', icon: '🧾' },
   { to: '/stock', label: 'Movimientos de Stock', icon: '📈' },
 ];
 
