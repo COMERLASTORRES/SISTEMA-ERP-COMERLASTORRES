@@ -20,6 +20,8 @@ public class SistemaERPDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Customer> Customers { get; set; } = null!;
     public DbSet<Supplier> Suppliers { get; set; } = null!;
+    public DbSet<Purchase> Purchases { get; set; } = null!;
+    public DbSet<PurchaseItem> PurchaseItems { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +108,36 @@ public class SistemaERPDbContext : DbContext
         modelBuilder.Entity<Supplier>()
             .HasIndex(s => new { s.TenantId, s.DocumentNumber })
             .IsUnique();
+
+        // Purchase multi-tenant query filter (the header is tenant-scoped; items are
+        // filtered indirectly through their parent Purchase).
+        modelBuilder.Entity<Purchase>().HasQueryFilter(p => p.TenantId == _tenantProvider.GetTenantId());
+
+        // PurchaseNumber is unique per tenant.
+        modelBuilder.Entity<Purchase>()
+            .HasIndex(p => new { p.TenantId, p.PurchaseNumber })
+            .IsUnique();
+
+        // Purchase -> Supplier (Restrict: keep purchase history even if the supplier is deactivated).
+        modelBuilder.Entity<Purchase>()
+            .HasOne<Supplier>()
+            .WithMany()
+            .HasForeignKey(p => p.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Purchase has many PurchaseItems; deleting a Purchase cascades to its items.
+        modelBuilder.Entity<Purchase>()
+            .HasMany(p => p.Items)
+            .WithOne()
+            .HasForeignKey(i => i.PurchaseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // PurchaseItem -> Product (Restrict: don't delete a product that has purchase lines).
+        modelBuilder.Entity<PurchaseItem>()
+            .HasOne<Product>()
+            .WithMany()
+            .HasForeignKey(i => i.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         base.OnModelCreating(modelBuilder);
     }
