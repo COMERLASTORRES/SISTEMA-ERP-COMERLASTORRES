@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain.Entities;
@@ -101,8 +102,12 @@ namespace SistemaERP.Api.Controllers
             if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
 
             var register = await _cashRegisterService.GetOpenCashRegisterForUserAsync(tenantId, userId);
-            if (register == null) return Ok(null);
-            return Ok(MapToDto(register));
+            // JsonResult explícito con 200 para garantizar body + status y evitar
+            // cualquier conversión implícita a 204 No Content por parte del framework.
+            return new JsonResult(register == null ? null : MapToDto(register))
+            {
+                StatusCode = StatusCodes.Status200OK,
+            };
         }
 
         // GET: api/CashRegisters (historial paginado)

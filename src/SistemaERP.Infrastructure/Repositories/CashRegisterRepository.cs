@@ -72,5 +72,14 @@ namespace SistemaERP.Infrastructure.Repositories
             await _context.SaveChangesAsync();
             return cashRegister;
         }
+
+        public async Task<CashMovement> AddMovementAsync(CashMovement movement)
+        {
+            // Inserta SOLO el CashMovement (INSERT). No toca la fila padre CashRegister,
+            // evitando el UPDATE innecesario que disparaba DbUpdateConcurrencyException.
+            var entity = await _context.CashMovements.AddAsync(movement);
+            await _context.SaveChangesAsync();
+            return entity.Entity;
+        }
     }
 }

@@ -12,4 +12,5 @@ public interface ICashRegisterRepository
     Task<IReadOnlyList<CashRegister>> GetAllAsync(int page = 1, int pageSize = 10);
     Task<CashRegister> AddAsync(CashRegister cashRegister);
     Task<CashRegister> UpdateAsync(CashRegister cashRegister);
+    Task<CashMovement> AddMovementAsync(CashMovement movement);
 }

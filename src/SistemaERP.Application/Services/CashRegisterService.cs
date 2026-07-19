@@ -110,7 +110,7 @@ namespace SistemaERP.Application.Services
                     "Ya existe un movimiento de caja registrado para esta venta en esta caja.");
             }
 
-            register.Movements.Add(new CashMovement
+            var movement = new CashMovement
             {
                 CashRegisterId = cashRegisterId,
                 Type = type,
@@ -120,13 +120,13 @@ namespace SistemaERP.Application.Services
                 Description = description,
                 SaleId = saleId,
                 CreatedBy = userId,
-            });
+            };
 
             _logger.LogInformation(
                 "Registering cash movement ({Type}/{Reason}) of {Amount} on register {Number}.",
                 type, reason, amount, register.CashRegisterNumber);
 
-            await _cashRegisterRepository.UpdateAsync(register);
+            await _cashRegisterRepository.AddMovementAsync(movement);
         }
 
         public async Task<CashRegister?> GetOpenCashRegisterForUserAsync(Guid tenantId, Guid userId)
