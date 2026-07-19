@@ -239,6 +239,66 @@ namespace SistemaERP.Application.Services
             }
         }
 
+        /// <summary>
+        /// Registra el cobro TOTAL de una venta a crédito, generando un ingreso de caja en
+        /// la misma transacción. Versión simplificada previa al módulo completo de Cuentas
+        /// por Cobrar: solo cubre el cobro total (PaymentStatus = Paid). El futuro módulo
+        /// usará una entidad SalePayment para pagos parciales, múltiples métodos/pagos por
+        /// venta, reversión individual e historial. La arquitectura actual queda preparada
+        /// para esa evolución sin cambios estructurales en la entidad Sale.
+        /// </summary>
+        public async Task RegisterFullPaymentAsync(Guid saleId, Guid userId, PaymentMethod paymentMethod)
+        {
+            var sale = await _saleRepository.GetByIdAsync(saleId);
+            if (sale == null)
+                throw new InvalidOperationException("La venta no existe.");
+
+            if (sale.Status != SaleStatus.Confirmed)
+                throw new InvalidOperationException("Solo se puede registrar el cobro de una venta confirmada.");
+
+            if (sale.PaymentType != PaymentType.Credit)
+                throw new InvalidOperationException("Solo las ventas a crédito pueden registrar cobros.");
+
+            if (sale.PaymentStatus == PaymentStatus.Paid)
+                throw new InvalidOperationException("Esta venta ya fue pagada.");
+
+            // La caja abierta del usuario es pre-requisito (mismo patrón que ConfirmAsync). Se
+            // resuelve antes de tocar el stock/caja para fallar temprano sin efectos parciales.
+            var openCashRegister = await _cashRegisterService.GetOpenCashRegisterForUserAsync(
+                sale.TenantId, userId);
+            if (openCashRegister == null)
+                throw new InvalidOperationException("Debe abrir una caja antes de registrar un cobro.");
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                await _cashRegisterService.RegisterMovementAsync(
+                    cashRegisterId: openCashRegister.Id,
+                    type: CashMovementType.Income,
+                    reason: MovementReason.CustomerPayment,
+                    paymentMethod: paymentMethod,
+                    amount: sale.Total,
+                    description: $"Cobro de venta {sale.SaleNumber}",
+                    saleId: sale.Id,
+                    userId: userId);
+
+                sale.RegisterFullPayment();
+
+                await _saleRepository.UpdateAsync(sale);
+                await _unitOfWork.CommitAsync();
+
+                _logger.LogInformation("Full payment registered for sale {SaleNumber} by user {UserId}.",
+                    sale.SaleNumber, userId);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackAsync();
+                _logger.LogError(ex, "Sale {SaleId} payment registration failed. Rolling back.", saleId);
+                throw new InvalidOperationException(
+                    "No se pudo registrar el cobro. Se revirtió la operación.", ex);
+            }
+        }
+
         public async Task CancelAsync(Guid saleId, Guid userId, string? reason = null)
         {
             var sale = await _saleRepository.GetByIdAsync(saleId);

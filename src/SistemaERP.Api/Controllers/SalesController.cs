@@ -187,6 +187,24 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
+        // POST: api/Sales/{id}/register-payment
+        [HttpPost("{id}/register-payment")]
+        public async Task<IActionResult> RegisterPayment(Guid id, [FromBody] RegisterPaymentDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
+
+            try
+            {
+                await _saleService.RegisterFullPaymentAsync(id, userId, dto.PaymentMethod);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
         // DELETE: api/Sales/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
@@ -11,6 +12,7 @@ import {
   useSale,
   useConfirmSale,
   useCancelSale,
+  useRegisterSalePayment,
   useValidateSaleStock,
 } from '../hooks/useSales';
 import {
@@ -18,6 +20,8 @@ import {
   VoucherType,
   Currency,
   PaymentType,
+  PaymentMethod,
+  PaymentStatus,
   SALE_STATUS_LABELS,
   VOUCHER_LABELS,
   PAYMENT_TYPE_LABELS,
@@ -30,6 +34,12 @@ const STATUS_BADGE: Record<SaleStatus, string> = {
   [SaleStatus.Draft]: 'bg-gray-100 text-gray-700',
   [SaleStatus.Confirmed]: 'bg-green-100 text-green-700',
   [SaleStatus.Cancelled]: 'bg-red-100 text-red-700',
+};
+
+const PAYMENT_STATUS_BADGE: Record<PaymentStatus, string> = {
+  [PaymentStatus.Pending]: 'bg-yellow-100 text-yellow-700',
+  [PaymentStatus.Partial]: 'bg-orange-100 text-orange-700',
+  [PaymentStatus.Paid]: 'bg-green-100 text-green-700',
 };
 
 const VOUCHER_LABELS_MAP: Record<VoucherType, string> = VOUCHER_LABELS;
@@ -46,6 +56,7 @@ export function SaleDetailPage() {
   const { data: sale, isLoading, isError, error } = useSale(id);
   const confirmMutation = useConfirmSale();
   const cancelMutation = useCancelSale();
+  const registerPaymentMutation = useRegisterSalePayment();
   const validateStockMutation = useValidateSaleStock();
   const { data: openCashRegister } = useOpenCashRegister();
 
@@ -54,8 +65,22 @@ export function SaleDetailPage() {
   const cashBlockedForCancel =
     sale?.paymentType === PaymentType.Cash && openCashRegister == null;
 
+  // El cobro de ventas a crédito registra un ingreso de caja, por lo que requiere
+  // una caja abierta del usuario (mismo patrón que confirmar/cancelar al contado).
+  const cashBlockedForPayment =
+    sale?.paymentType === PaymentType.Credit && openCashRegister == null;
+
+  const canRegisterPayment =
+    sale?.status === SaleStatus.Confirmed &&
+    sale?.paymentType === PaymentType.Credit &&
+    sale?.paymentStatus === PaymentStatus.Pending;
+
   const [formError, setFormError] = useState('');
   const [stockErrors, setStockErrors] = useState<StockValidationError[]>([]);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>(
+    PaymentMethod.Cash,
+  );
 
   const paymentLabel = useMemo(() => {
     if (!sale) return '';
@@ -109,6 +134,23 @@ export function SaleDetailPage() {
     }
   };
 
+  const handleOpenPaymentModal = () => {
+    if (!id || !canRegisterPayment) return;
+    if (cashBlockedForPayment) return;
+    setSelectedPaymentMethod(PaymentMethod.Cash);
+    setPaymentModalOpen(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!id) return;
+    try {
+      await registerPaymentMutation.mutateAsync({ id, paymentMethod: selectedPaymentMethod });
+      setPaymentModalOpen(false);
+    } catch (err: any) {
+      setFormError(extractError(err));
+    }
+  };
+
   if (isLoading) return <LoadingSpinner />;
   if (isError) return <ErrorMessage message={extractError(error)} />;
   if (!sale) return <ErrorMessage message="Venta no encontrada." />;
@@ -117,9 +159,22 @@ export function SaleDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Venta {sale.saleNumber}</h1>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[sale.status]}`}>
-          {SALE_STATUS_LABELS[sale.status]}
-        </span>
+        <div className="flex items-center gap-2">
+          {sale.paymentType === PaymentType.Credit && (
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium ${PAYMENT_STATUS_BADGE[sale.paymentStatus]}`}
+            >
+              {sale.paymentStatus === PaymentStatus.Paid
+                ? 'Pagado'
+                : sale.paymentStatus === PaymentStatus.Partial
+                  ? 'Pago Parcial'
+                  : 'Pendiente de Pago'}
+            </span>
+          )}
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[sale.status]}`}>
+            {SALE_STATUS_LABELS[sale.status]}
+          </span>
+        </div>
       </div>
 
       {formError && <ErrorMessage message={formError} />}
@@ -218,6 +273,22 @@ export function SaleDetailPage() {
         )}
         {sale.status === SaleStatus.Confirmed && (
           <>
+            {canRegisterPayment && (
+              <Button
+                onClick={handleOpenPaymentModal}
+                disabled={registerPaymentMutation.isPending || cashBlockedForPayment}
+              >
+                Registrar Cobro
+              </Button>
+            )}
+            {canRegisterPayment && cashBlockedForPayment && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de registrar un cobro.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
             <Button
               variant="danger"
               onClick={handleCancel}
@@ -239,6 +310,48 @@ export function SaleDetailPage() {
           Volver
         </Button>
       </div>
+
+      <Modal open={paymentModalOpen} title="Registrar Cobro" onClose={() => setPaymentModalOpen(false)}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Seleccione el método de pago para el cobro total de{' '}
+            <strong>S/ {sale.total.toFixed(2)}</strong>.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                PaymentMethod.Cash,
+                PaymentMethod.Card,
+                PaymentMethod.Transfer,
+                PaymentMethod.YapePlin,
+                PaymentMethod.Other,
+              ] as PaymentMethod[]
+            ).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setSelectedPaymentMethod(m)}
+                className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                  selectedPaymentMethod === m
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {PAYMENT_METHOD_LABELS[m]}
+              </button>
+            ))}
+          </div>
+          {formError && <ErrorMessage message={formError} />}
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setPaymentModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmPayment} disabled={registerPaymentMutation.isPending}>
+              Confirmar Cobro
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

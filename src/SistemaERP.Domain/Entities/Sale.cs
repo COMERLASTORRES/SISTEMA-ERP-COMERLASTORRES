@@ -67,6 +67,24 @@ public class Sale : AuditableEntity
     public string? Observations { get; set; }
 
     public ICollection<SaleItem> Items { get; set; } = new List<SaleItem>();
+
+    /// <summary>
+    /// Transición de dominio para el cobro TOTAL de una venta a crédito. Cambia
+    /// PaymentStatus a Paid. Encapsula la regla de negocio para que la futura
+    /// implementación de pagos parciales (Cuentas por Cobrar con entidad SalePayment)
+    /// no disperse lógica en los servicios.
+    ///
+    /// Nota: esta versión simplificada solo cubre el cobro total. El módulo completo
+    /// de Cuentas por Cobrar incorporará una entidad SalePayment que permitirá pagos
+    /// parciales, múltiples métodos de pago por venta, múltiples pagos sobre una misma
+    /// venta, reversión individual de pagos e historial completo. La arquitectura actual
+    /// (PaymentStatus + esta transición) queda preparada para esa evolución sin cambios
+    /// estructurales en la entidad Sale.
+    /// </summary>
+    public void RegisterFullPayment()
+    {
+        PaymentStatus = PaymentStatus.Paid;
+    }
 }
 
 public enum PaymentType

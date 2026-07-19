@@ -177,5 +177,8 @@ export const salesApi = {
   cancel: (id: string, reason?: string | null) =>
     api.post<void>(`/api/Sales/${id}/cancel`, reason ? { reason } : {}),
 
+  registerPayment: (id: string, paymentMethod: PaymentMethod) =>
+    api.post<void>(`/api/Sales/${id}/register-payment`, { paymentMethod }),
+
   remove: (id: string) => api.delete<void>(`/api/Sales/${id}`),
 };

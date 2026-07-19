@@ -3,6 +3,7 @@ import {
   salesApi,
   type Sale,
   type SaleStatus,
+  type PaymentMethod,
   type CreateSalePayload,
   type UpdateSalePayload,
   type ValidateStockItemPayload,
@@ -67,6 +68,15 @@ export function useCancelSale() {
   return useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string | null }) =>
       salesApi.cancel(id, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
+export function useRegisterSalePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paymentMethod }: { id: string; paymentMethod: PaymentMethod }) =>
+      salesApi.registerPayment(id, paymentMethod),
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   });
 }
