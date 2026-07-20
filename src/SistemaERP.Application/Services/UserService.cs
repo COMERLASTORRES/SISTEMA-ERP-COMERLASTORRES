@@ -103,6 +103,44 @@ namespace SistemaERP.Application.Services
             await AssignRolesAsync(userId, new[] { adminRole.Id });
         }
 
+        /// <summary>
+        /// Sincroniza el rol de sistema "Admin" de cada tenant: le agrega los códigos de
+        /// permiso recién incorporados al catálogo (ej. tras añadir users.* o roles.*) sin
+        /// eliminar los que ya tuviera. Así un admin nunca pierde acceso por un nuevo permiso.
+        /// Es idempotente y seguro de ejecutar en cada arranque.
+        /// </summary>
+        public async Task SyncSystemAdminRolesAsync()
+        {
+            var allPermissionIds = (await _permissionRepository.GetAllAsync())
+                .Select(p => p.Id)
+                .ToHashSet();
+            if (allPermissionIds.Count == 0) return;
+
+            var tenants = await _tenantRepository.GetAllAsync();
+            foreach (var tenant in tenants)
+            {
+                var admin = (await _roleRepository.GetAllByTenantAsync(tenant.Id))
+                    .FirstOrDefault(r => r.IsSystemRole && r.Name == "Admin");
+                if (admin == null) continue;
+
+                var adminWithPerms = await _roleRepository.GetByIdWithPermissionsAsync(admin.Id);
+                if (adminWithPerms == null) continue;
+
+                var existing = new HashSet<Guid>(
+                    adminWithPerms.RolePermissions.Select(rp => rp.PermissionId));
+                var missing = allPermissionIds
+                    .Where(pid => !existing.Contains(pid))
+                    .Select(pid => new RolePermission { RoleId = admin.Id, PermissionId = pid })
+                    .ToList();
+
+                if (missing.Count == 0) continue;
+
+                adminWithPerms.RolePermissions =
+                    adminWithPerms.RolePermissions.Concat(missing).ToList();
+                await _roleRepository.UpdateAsync(adminWithPerms);
+            }
+        }
+
         public async Task<User?> ValidateCredentialsAsync(string email, string password)
         {
             var user = await _userRepository.GetByEmailAsync(email);

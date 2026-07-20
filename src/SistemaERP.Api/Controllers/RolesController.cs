@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SistemaERP.Domain;
 using SistemaERP.Api.Models;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain.Entities;
@@ -24,6 +25,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Roles (lista de roles del tenant, con conteo de permisos).
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.RolesView)]
         public async Task<IActionResult> Get()
         {
             var tenantId = GetTenantId();
@@ -45,6 +47,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Roles/{id} (detalle con permisos incluidos).
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.RolesView)]
         public async Task<IActionResult> Get(Guid id)
         {
             var role = await _roleService.GetByIdAsync(id);
@@ -75,6 +78,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Roles (crear).
         [HttpPost]
+        [Authorize(Policy = PermissionCodes.RolesCreate)]
         public async Task<IActionResult> Post([FromBody] CreateRoleDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -95,6 +99,7 @@ namespace SistemaERP.Api.Controllers
         // PUT: api/Roles/{id} (editar). Bloquea la edición completa de roles de sistema:
         // el service ya lanza si se intenta cambiar el nombre, así que delegamos la regla.
         [HttpPut("{id}")]
+        [Authorize(Policy = PermissionCodes.RolesEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdateRoleDto dto)
         {
             if (id != dto.Id) return BadRequest("ID mismatch");
@@ -111,6 +116,7 @@ namespace SistemaERP.Api.Controllers
 
         // DELETE: api/Roles/{id} (validación en RoleService: no si es sistema ni tiene usuarios).
         [HttpDelete("{id}")]
+        [Authorize(Policy = PermissionCodes.RolesDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
             try
@@ -126,6 +132,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Roles/{id}/permissions (reemplaza el set completo de permisos).
         [HttpPost("{id}/permissions")]
+        [Authorize(Policy = PermissionCodes.RolesAssign)]
         public async Task<IActionResult> AssignPermissions(Guid id, [FromBody] AssignRolePermissionsDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);

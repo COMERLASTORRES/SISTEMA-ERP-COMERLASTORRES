@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useRoles,
   useDeleteRole,
@@ -11,6 +13,21 @@ import {
 } from '../hooks/useRoles';
 
 export function RolesPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.RolesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <RolesContent />
+    </RequirePermission>
+  );
+}
+
+function RolesContent() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useRoles();
   const deleteMutation = useDeleteRole();
@@ -38,7 +55,9 @@ export function RolesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Roles</h1>
-        <Button onClick={openCreate}>Nuevo Rol</Button>
+        <RequirePermission codes={PermissionCodes.RolesCreate}>
+          <Button onClick={openCreate}>Nuevo Rol</Button>
+        </RequirePermission>
       </div>
 
       {formError && <ErrorMessage message={formError} />}
@@ -69,16 +88,20 @@ export function RolesPage() {
             header: 'Acciones',
             accessor: (r) => (
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => navigate(`/roles/${r.id}/editar`)}>
-                  Editar
-                </Button>
-                <Button
-                  variant="danger"
-                  disabled={r.isSystemRole || deleteMutation.isPending}
-                  onClick={() => handleDelete(r)}
-                >
-                  Eliminar
-                </Button>
+                <RequirePermission codes={PermissionCodes.RolesEdit}>
+                  <Button variant="secondary" onClick={() => navigate(`/roles/${r.id}/editar`)}>
+                    Editar
+                  </Button>
+                </RequirePermission>
+                <RequirePermission codes={PermissionCodes.RolesDelete}>
+                  <Button
+                    variant="danger"
+                    disabled={r.isSystemRole || deleteMutation.isPending}
+                    onClick={() => handleDelete(r)}
+                  >
+                    Eliminar
+                  </Button>
+                </RequirePermission>
               </div>
             ),
           },

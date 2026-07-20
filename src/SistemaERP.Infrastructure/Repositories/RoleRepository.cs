@@ -22,6 +22,7 @@ namespace SistemaERP.Infrastructure.Repositories
         {
             return await _context.Roles
                 .AsNoTracking()
+                .Include(r => r.RolePermissions)
                 .Where(r => r.TenantId == tenantId)
                 .OrderBy(r => r.Name)
                 .ToListAsync();

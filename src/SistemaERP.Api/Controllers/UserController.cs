@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SistemaERP.Domain;
 using SistemaERP.Api.Models;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain.Entities;
@@ -24,6 +25,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Users (lista de usuarios del tenant actual).
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.UsersView)]
         public async Task<IActionResult> Get()
         {
             var tenantId = GetTenantId();
@@ -80,6 +82,7 @@ namespace SistemaERP.Api.Controllers
 
         // PUT: api/Users/{id}/roles (reemplaza el set completo de roles).
         [HttpPut("{id}/roles")]
+        [Authorize(Policy = PermissionCodes.UsersEdit)]
         public async Task<IActionResult> AssignRoles(Guid id, [FromBody] AssignUserRolesDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);

@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useRole,
   useCreateRole,
@@ -15,6 +17,21 @@ import type { Permission } from '../api/permissions';
 import { translateModule, translatePermission } from '../api/permissionLabels';
 
 export function RoleFormPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.RolesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <RoleFormContent />
+    </RequirePermission>
+  );
+}
+
+function RoleFormContent() {
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -141,16 +158,26 @@ export function RoleFormPage() {
         <Button variant="secondary" onClick={() => navigate('/roles')}>
           Cancelar
         </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={
-            createMutation.isPending ||
-            updateMutation.isPending ||
-            assignMutation.isPending
-          }
+        {/* El guardado siempre reasigna el set completo de permisos (assignMutation,
+            que exige RolesAssign), además de crear/editar (RolesCreate/RolesEdit). */}
+        <RequirePermission
+          all
+          codes={[
+            isEdit ? PermissionCodes.RolesEdit : PermissionCodes.RolesCreate,
+            PermissionCodes.RolesAssign,
+          ]}
         >
-          {isEdit ? 'Guardar' : 'Crear'}
-        </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              createMutation.isPending ||
+              updateMutation.isPending ||
+              assignMutation.isPending
+            }
+          >
+            {isEdit ? 'Guardar' : 'Crear'}
+          </Button>
+        </RequirePermission>
       </div>
     </div>
   );

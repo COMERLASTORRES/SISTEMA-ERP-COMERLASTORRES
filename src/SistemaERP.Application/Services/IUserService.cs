@@ -26,4 +26,7 @@ public interface IUserService
 
     // Devuelve la unión de los permisos de todos los roles del usuario (sin duplicados).
     Task<IReadOnlyList<Permission>> GetUserPermissionsAsync(Guid userId);
+
+    // Sincroniza el rol de sistema "Admin" de cada tenant con los permisos nuevos del catálogo.
+    Task SyncSystemAdminRolesAsync();
 }

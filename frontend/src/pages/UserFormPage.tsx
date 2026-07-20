@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useUser,
   useCreateUser,
@@ -13,6 +15,21 @@ import {
 import { useRoles, type RoleSummary } from '../hooks/useRoles';
 
 export function UserFormPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.UsersView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <UserFormContent />
+    </RequirePermission>
+  );
+}
+
+function UserFormContent() {
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -165,9 +182,11 @@ export function UserFormPage() {
             <Button variant="secondary" onClick={() => navigate('/usuarios')}>
               Cancelar
             </Button>
-            <Button onClick={handleEditSubmit} disabled={updateMutation.isPending || assignMutation.isPending}>
-              Guardar
-            </Button>
+            <RequirePermission codes={PermissionCodes.UsersEdit}>
+              <Button onClick={handleEditSubmit} disabled={updateMutation.isPending || assignMutation.isPending}>
+                Guardar
+              </Button>
+            </RequirePermission>
           </div>
         </div>
       ) : createdUserId === null ? (
@@ -185,9 +204,11 @@ export function UserFormPage() {
             <Button variant="secondary" onClick={() => navigate('/usuarios')}>
               Cancelar
             </Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending}>
-              Crear Usuario
-            </Button>
+            <RequirePermission codes={PermissionCodes.UsersCreate}>
+              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                Crear Usuario
+              </Button>
+            </RequirePermission>
           </div>
         </div>
       ) : (
@@ -226,9 +247,11 @@ export function UserFormPage() {
             <Button variant="secondary" onClick={() => navigate('/usuarios')}>
               Omitir
             </Button>
-            <Button onClick={handleFinish} disabled={assignMutation.isPending}>
-              Asignar Rol y Finalizar
-            </Button>
+            <RequirePermission codes={PermissionCodes.UsersEdit}>
+              <Button onClick={handleFinish} disabled={assignMutation.isPending}>
+                Asignar Rol y Finalizar
+              </Button>
+            </RequirePermission>
           </div>
         </div>
       )}
