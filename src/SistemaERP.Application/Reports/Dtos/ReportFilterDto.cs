@@ -40,6 +40,14 @@ public class ReportFilterDto
     /// <summary>Estado del documento (Draft/Confirmed/Cancelled).</summary>
     public SaleStatus? DocumentStatus { get; set; }
 
+    /// <summary>
+    /// Cuando es true, la tabla del reporte NO aplica filtro de estado (muestra todos los
+    /// estados). Tiene prioridad sobre DocumentStatus. Cuando es false/ausente y
+    /// DocumentStatus es nulo, la tabla usa Confirmadas por defecto. El resumen SIEMPRE
+    /// se calcula solo sobre Confirmadas, sin importar este flag.
+    /// </summary>
+    public bool IncludeAllStatuses { get; set; }
+
     /// <summary>Búsqueda libre sobre número de documento u otros campos de texto.</summary>
     public string? Search { get; set; }
 

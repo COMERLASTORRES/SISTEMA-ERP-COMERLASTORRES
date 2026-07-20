@@ -20,6 +20,7 @@ import { RolesPage } from '../pages/RolesPage';
 import { RoleFormPage } from '../pages/RoleFormPage';
 import { UsersPage } from '../pages/UsersPage';
 import { UserFormPage } from '../pages/UserFormPage';
+import { SalesReportPage } from '../pages/SalesReportPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export function AppRoutes() {
@@ -52,6 +53,7 @@ export function AppRoutes() {
             <Route path="/usuarios" element={<UsersPage />} />
             <Route path="/usuarios/nueva" element={<UserFormPage />} />
             <Route path="/usuarios/:id/editar" element={<UserFormPage />} />
+            <Route path="/reportes" element={<SalesReportPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

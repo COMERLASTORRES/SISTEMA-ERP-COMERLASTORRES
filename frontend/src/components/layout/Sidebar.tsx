@@ -12,6 +12,7 @@ const operationalItems = [
   { to: '/ventas', label: 'Ventas', icon: '🧾', permission: PermissionCodes.SalesView },
   { to: '/caja', label: 'Caja', icon: '💰', permission: PermissionCodes.CashRegisterView },
   { to: '/stock', label: 'Movimientos de Stock', icon: '📈', permission: PermissionCodes.StockMovementsView },
+  { to: '/reportes', label: 'Reportes', icon: '📊', permission: PermissionCodes.ReportsView },
 ];
 
 const adminItems = [
