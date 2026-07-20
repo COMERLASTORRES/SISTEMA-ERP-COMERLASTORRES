@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using System;
 using System.Linq;
@@ -10,7 +11,6 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/[controller]")]
     public class CustomersController : ControllerBase
     {
@@ -22,6 +22,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Customers?page=1&pageSize=10
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.CustomersView)]
         public async Task<IActionResult> Get([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             if (page <= 0) page = 1;
@@ -47,6 +48,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Customers/{id}
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.CustomersView)]
         public async Task<IActionResult> Get(Guid id)
         {
             var customer = await _customerService.GetByIdAsync(id);
@@ -56,6 +58,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Customers
         [HttpPost]
+        [Authorize(Policy = PermissionCodes.CustomersCreate)]
         public async Task<IActionResult> Post([FromBody] Customer model)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -76,6 +79,7 @@ namespace SistemaERP.Api.Controllers
 
         // PUT: api/Customers/{id}
         [HttpPut("{id}")]
+        [Authorize(Policy = PermissionCodes.CustomersEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] Customer model)
         {
             if (id != model.Id) return BadRequest("ID mismatch");
@@ -106,6 +110,7 @@ namespace SistemaERP.Api.Controllers
 
         // DELETE: api/Customers/{id}
         [HttpDelete("{id}")]
+        [Authorize(Policy = PermissionCodes.CustomersDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
             var customer = await _customerService.GetByIdAsync(id);

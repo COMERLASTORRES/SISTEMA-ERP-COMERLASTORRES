@@ -31,7 +31,7 @@ public static class PermissionSeed
         ("purchases", CrudPlusActions),
         ("sales", CrudPlusActions),
         ("cashregister", new[] { "view", "open", "close", "movement" }),
-        ("stockmovements", new[] { "view", "export" }),
+        ("stockmovements", new[] { "view", "create", "export" }),
         ("users", CrudActions),
         ("roles", new[] { "view", "create", "edit", "delete", "assign" }),
         ("reports", new[] { "view", "export" }),

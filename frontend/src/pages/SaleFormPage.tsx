@@ -5,6 +5,8 @@ import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
 import { useOpenCashRegister } from '../hooks/useCashRegisters';
@@ -45,6 +47,21 @@ function emptyItem(): ItemRow {
 }
 
 export function SaleFormPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.SalesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <SaleFormContent />
+    </RequirePermission>
+  );
+}
+
+function SaleFormContent() {
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -503,32 +520,36 @@ export function SaleFormPage() {
       {/* Acciones */}
       <div className="flex gap-3">
         {isDraft && (
-          <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
-            Guardar Borrador
-          </Button>
+          <RequirePermission codes={isEdit ? PermissionCodes.SalesEdit : PermissionCodes.SalesCreate}>
+            <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
+              Guardar Borrador
+            </Button>
+          </RequirePermission>
         )}
         {isDraft && id && (
-          <>
+          <RequirePermission codes={PermissionCodes.SalesConfirm}>
             <Button
               onClick={handleConfirm}
               disabled={confirmMutation.isPending || cashBlockedForConfirm}
             >
               Confirmar
             </Button>
-            {cashBlockedForConfirm && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <span>Debe abrir una caja antes de confirmar ventas al contado.</span>
-                <Button variant="secondary" onClick={() => navigate('/caja')}>
-                  Ir a Caja
-                </Button>
-              </div>
-            )}
-          </>
+          </RequirePermission>
+        )}
+        {isDraft && id && cashBlockedForConfirm && (
+          <div className="flex items-center gap-2 text-sm text-red-600">
+            <span>Debe abrir una caja antes de confirmar ventas al contado.</span>
+            <Button variant="secondary" onClick={() => navigate('/caja')}>
+              Ir a Caja
+            </Button>
+          </div>
         )}
         {!isCancelled && id && (
-          <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
-            Cancelar
-          </Button>
+          <RequirePermission codes={PermissionCodes.SalesCancel}>
+            <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
+              Cancelar
+            </Button>
+          </RequirePermission>
         )}
         <Button variant="secondary" onClick={() => navigate('/ventas')}>
           Volver

@@ -5,6 +5,8 @@ import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
 import { useOpenCashRegister } from '../hooks/useCashRegisters';
@@ -45,6 +47,21 @@ const PAYMENT_STATUS_BADGE: Record<PaymentStatus, string> = {
 const VOUCHER_LABELS_MAP: Record<VoucherType, string> = VOUCHER_LABELS;
 
 export function SaleDetailPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.SalesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <SaleDetailContent />
+    </RequirePermission>
+  );
+}
+
+function SaleDetailContent() {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -250,17 +267,23 @@ export function SaleDetailPage() {
       <div className="flex gap-3">
         {sale.status === SaleStatus.Draft && (
           <>
-            <Button onClick={() => navigate(`/ventas/${sale.id}/editar`)}>Editar</Button>
-            <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
-              Confirmar
-            </Button>
-            <Button
-              variant="danger"
-              onClick={handleCancel}
-              disabled={cancelMutation.isPending || cashBlockedForCancel}
-            >
-              Cancelar
-            </Button>
+            <RequirePermission codes={PermissionCodes.SalesEdit}>
+              <Button onClick={() => navigate(`/ventas/${sale.id}/editar`)}>Editar</Button>
+            </RequirePermission>
+            <RequirePermission codes={PermissionCodes.SalesConfirm}>
+              <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
+                Confirmar
+              </Button>
+            </RequirePermission>
+            <RequirePermission codes={PermissionCodes.SalesCancel}>
+              <Button
+                variant="danger"
+                onClick={handleCancel}
+                disabled={cancelMutation.isPending || cashBlockedForCancel}
+              >
+                Cancelar
+              </Button>
+            </RequirePermission>
             {cashBlockedForCancel && (
               <div className="flex items-center gap-2 text-sm text-red-600">
                 <span>Debe abrir una caja antes de cancelar ventas al contado.</span>
@@ -274,12 +297,14 @@ export function SaleDetailPage() {
         {sale.status === SaleStatus.Confirmed && (
           <>
             {canRegisterPayment && (
-              <Button
-                onClick={handleOpenPaymentModal}
-                disabled={registerPaymentMutation.isPending || cashBlockedForPayment}
-              >
-                Registrar Cobro
-              </Button>
+              <RequirePermission codes={PermissionCodes.SalesEdit}>
+                <Button
+                  onClick={handleOpenPaymentModal}
+                  disabled={registerPaymentMutation.isPending || cashBlockedForPayment}
+                >
+                  Registrar Cobro
+                </Button>
+              </RequirePermission>
             )}
             {canRegisterPayment && cashBlockedForPayment && (
               <div className="flex items-center gap-2 text-sm text-red-600">
@@ -289,13 +314,15 @@ export function SaleDetailPage() {
                 </Button>
               </div>
             )}
-            <Button
-              variant="danger"
-              onClick={handleCancel}
-              disabled={cancelMutation.isPending || cashBlockedForCancel}
-            >
-              Cancelar
-            </Button>
+            <RequirePermission codes={PermissionCodes.SalesCancel}>
+              <Button
+                variant="danger"
+                onClick={handleCancel}
+                disabled={cancelMutation.isPending || cashBlockedForCancel}
+              >
+                Cancelar
+              </Button>
+            </RequirePermission>
             {cashBlockedForCancel && (
               <div className="flex items-center gap-2 text-sm text-red-600">
                 <span>Debe abrir una caja antes de cancelar ventas al contado.</span>

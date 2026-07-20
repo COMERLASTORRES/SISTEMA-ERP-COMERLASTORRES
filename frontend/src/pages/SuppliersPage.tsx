@@ -5,6 +5,8 @@ import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useSuppliers,
   useCreateSupplier,
@@ -22,6 +24,21 @@ import {
 const PAGE_SIZE = 10;
 
 export function SuppliersPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.SuppliersView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <SuppliersContent />
+    </RequirePermission>
+  );
+}
+
+function SuppliersContent() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -146,7 +163,16 @@ export function SuppliersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Proveedores</h1>
-        <Button onClick={openCreate}>Nuevo Proveedor</Button>
+        <RequirePermission
+          codes={PermissionCodes.SuppliersCreate}
+          fallback={
+            <span className="text-sm text-gray-500">
+              No tienes permiso para crear proveedores.
+            </span>
+          }
+        >
+          <Button onClick={openCreate}>Nuevo Proveedor</Button>
+        </RequirePermission>
       </div>
 
       <Input
@@ -182,12 +208,16 @@ export function SuppliersPage() {
             header: 'Acciones',
             accessor: (s) => (
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => openEdit(s)}>
-                  Editar
-                </Button>
-                <Button variant="danger" onClick={() => handleDelete(s)}>
-                  Eliminar
-                </Button>
+                <RequirePermission codes={PermissionCodes.SuppliersEdit}>
+                  <Button variant="secondary" onClick={() => openEdit(s)}>
+                    Editar
+                  </Button>
+                </RequirePermission>
+                <RequirePermission codes={PermissionCodes.SuppliersDelete}>
+                  <Button variant="danger" onClick={() => handleDelete(s)}>
+                    Eliminar
+                  </Button>
+                </RequirePermission>
               </div>
             ),
           },

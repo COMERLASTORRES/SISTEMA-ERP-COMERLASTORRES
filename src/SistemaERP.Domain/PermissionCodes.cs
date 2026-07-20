@@ -68,6 +68,7 @@ public static class PermissionCodes
 
     // stockmovements
     public const string StockMovementsView = "stockmovements.view";
+    public const string StockMovementsCreate = "stockmovements.create";
     public const string StockMovementsExport = "stockmovements.export";
 
     // users

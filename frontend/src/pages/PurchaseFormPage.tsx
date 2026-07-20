@@ -5,6 +5,8 @@ import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useOpenCashRegister } from '../hooks/useCashRegisters';
@@ -41,6 +43,21 @@ function emptyItem(): ItemRow {
 }
 
 export function PurchaseFormPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.PurchasesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <PurchaseFormContent />
+    </RequirePermission>
+  );
+}
+
+function PurchaseFormContent() {
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -471,12 +488,16 @@ export function PurchaseFormPage() {
       {/* Acciones */}
       <div className="flex gap-3">
         {isDraft && (
-          <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
-            Guardar Borrador
-          </Button>
+          <RequirePermission
+            codes={isEdit ? PermissionCodes.PurchasesEdit : PermissionCodes.PurchasesCreate}
+          >
+            <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
+              Guardar Borrador
+            </Button>
+          </RequirePermission>
         )}
         {isDraft && id && (
-          <>
+          <RequirePermission codes={PermissionCodes.PurchasesConfirm}>
             <Button
               onClick={handleConfirm}
               disabled={confirmMutation.isPending || cashBlockedForConfirm}
@@ -491,12 +512,14 @@ export function PurchaseFormPage() {
                 </Button>
               </div>
             )}
-          </>
+          </RequirePermission>
         )}
         {!isCancelled && id && (
-          <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
-            Cancelar
-          </Button>
+          <RequirePermission codes={PermissionCodes.PurchasesCancel}>
+            <Button variant="danger" onClick={handleCancel} disabled={cancelMutation.isPending}>
+              Cancelar
+            </Button>
+          </RequirePermission>
         )}
         <Button variant="secondary" onClick={() => navigate('/compras')}>
           Volver

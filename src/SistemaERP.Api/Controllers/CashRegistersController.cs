@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using SistemaERP.Api.Models;
 using System;
@@ -12,7 +13,6 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/[controller]")]
     public class CashRegistersController : ControllerBase
     {
@@ -24,6 +24,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/CashRegisters/open
         [HttpPost("open")]
+        [Authorize(Policy = PermissionCodes.CashRegisterOpen)]
         public async Task<IActionResult> Open([FromBody] OpenCashRegisterDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -48,6 +49,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/CashRegisters/{id}/close
         [HttpPost("{id}/close")]
+        [Authorize(Policy = PermissionCodes.CashRegisterClose)]
         public async Task<IActionResult> Close(Guid id, [FromBody] CloseCashRegisterDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -66,6 +68,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/CashRegisters/{id}/movements (movimientos manuales: retiros, caja chica, etc.)
         [HttpPost("{id}/movements")]
+        [Authorize(Policy = PermissionCodes.CashRegisterMovement)]
         public async Task<IActionResult> RegisterMovement(Guid id, [FromBody] RegisterCashMovementDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -94,6 +97,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/CashRegisters/open (caja abierta del usuario actual, o null si no hay)
         [HttpGet("open")]
+        [Authorize(Policy = PermissionCodes.CashRegisterView)]
         public async Task<IActionResult> GetOpen()
         {
             var tenantId = GetTenantId();
@@ -112,6 +116,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/CashRegisters (historial paginado)
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.CashRegisterView)]
         public async Task<IActionResult> Get([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             if (page <= 0) page = 1;
@@ -131,6 +136,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/CashRegisters/{id}
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.CashRegisterView)]
         public async Task<IActionResult> GetById(Guid id)
         {
             var register = await _cashRegisterService.GetByIdAsync(id);

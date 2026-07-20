@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using System;
 using System.Linq;
@@ -11,7 +12,6 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/[controller]")]
     public class StockMovementsController : ControllerBase
     {
@@ -23,6 +23,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/StockMovements?productId=...&page=1&pageSize=10
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.StockMovementsView)]
         public async Task<IActionResult> Get([FromQuery] Guid? productId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             if (page <= 0) page = 1;
@@ -51,6 +52,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/StockMovements/{id}
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.StockMovementsView)]
         public async Task<IActionResult> Get(Guid id)
         {
             var movement = await _stockMovementService.GetByIdAsync(id);
@@ -60,6 +62,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/StockMovements
         [HttpPost]
+        [Authorize(Policy = PermissionCodes.StockMovementsCreate)]
         public async Task<IActionResult> Post([FromBody] StockMovement model)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);

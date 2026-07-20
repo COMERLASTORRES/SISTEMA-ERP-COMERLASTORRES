@@ -3,6 +3,8 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useOpenCashRegister } from '../hooks/useCashRegisters';
@@ -37,6 +39,21 @@ const VOUCHER_LABELS: Record<VoucherType, string> = {
 };
 
 export function PurchaseDetailPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.PurchasesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <PurchaseDetailContent />
+    </RequirePermission>
+  );
+}
+
+function PurchaseDetailContent() {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -173,17 +190,23 @@ export function PurchaseDetailPage() {
       <div className="flex gap-3">
         {purchase.status === PurchaseStatus.Draft && (
           <>
-            <Button onClick={() => navigate(`/compras/${purchase.id}/editar`)}>Editar</Button>
-            <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
-              Confirmar
-            </Button>
-            <Button
-              variant="danger"
-              onClick={handleCancel}
-              disabled={cancelMutation.isPending || cashBlockedForCancel}
-            >
-              Cancelar
-            </Button>
+            <RequirePermission codes={PermissionCodes.PurchasesEdit}>
+              <Button onClick={() => navigate(`/compras/${purchase.id}/editar`)}>Editar</Button>
+            </RequirePermission>
+            <RequirePermission codes={PermissionCodes.PurchasesConfirm}>
+              <Button onClick={handleConfirm} disabled={confirmMutation.isPending}>
+                Confirmar
+              </Button>
+            </RequirePermission>
+            <RequirePermission codes={PermissionCodes.PurchasesCancel}>
+              <Button
+                variant="danger"
+                onClick={handleCancel}
+                disabled={cancelMutation.isPending || cashBlockedForCancel}
+              >
+                Cancelar
+              </Button>
+            </RequirePermission>
             {cashBlockedForCancel && (
               <div className="flex items-center gap-2 text-sm text-red-600">
                 <span>Debe abrir una caja antes de cancelar compras al contado.</span>
@@ -196,13 +219,15 @@ export function PurchaseDetailPage() {
         )}
         {purchase.status === PurchaseStatus.Confirmed && (
           <>
-            <Button
-              variant="danger"
-              onClick={handleCancel}
-              disabled={cancelMutation.isPending || cashBlockedForCancel}
-            >
-              Cancelar
-            </Button>
+            <RequirePermission codes={PermissionCodes.PurchasesCancel}>
+              <Button
+                variant="danger"
+                onClick={handleCancel}
+                disabled={cancelMutation.isPending || cashBlockedForCancel}
+              >
+                Cancelar
+              </Button>
+            </RequirePermission>
             {cashBlockedForCancel && (
               <div className="flex items-center gap-2 text-sm text-red-600">
                 <span>Debe abrir una caja antes de cancelar compras al contado.</span>

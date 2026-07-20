@@ -5,6 +5,8 @@ import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useCategories,
   useCreateCategory,
@@ -17,6 +19,21 @@ import {
 const PAGE_SIZE = 10;
 
 export function CategoriesPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.CategoriesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <CategoriesContent />
+    </RequirePermission>
+  );
+}
+
+function CategoriesContent() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -91,7 +108,16 @@ export function CategoriesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Categorías</h1>
-        <Button onClick={openCreate}>Nueva Categoría</Button>
+        <RequirePermission
+          codes={PermissionCodes.CategoriesCreate}
+          fallback={
+            <span className="text-sm text-gray-500">
+              No tienes permiso para crear categorías.
+            </span>
+          }
+        >
+          <Button onClick={openCreate}>Nueva Categoría</Button>
+        </RequirePermission>
       </div>
 
       <Input
@@ -118,12 +144,16 @@ export function CategoriesPage() {
             header: 'Acciones',
             accessor: (c) => (
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => openEdit(c)}>
-                  Editar
-                </Button>
-                <Button variant="danger" onClick={() => handleDelete(c)}>
-                  Eliminar
-                </Button>
+                <RequirePermission codes={PermissionCodes.CategoriesEdit}>
+                  <Button variant="secondary" onClick={() => openEdit(c)}>
+                    Editar
+                  </Button>
+                </RequirePermission>
+                <RequirePermission codes={PermissionCodes.CategoriesDelete}>
+                  <Button variant="danger" onClick={() => handleDelete(c)}>
+                    Eliminar
+                  </Button>
+                </RequirePermission>
               </div>
             ),
           },

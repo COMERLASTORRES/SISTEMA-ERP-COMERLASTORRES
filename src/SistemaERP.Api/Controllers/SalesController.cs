@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using SistemaERP.Api.Models;
 using System;
@@ -12,7 +13,6 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/[controller]")]
     public class SalesController : ControllerBase
     {
@@ -24,6 +24,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Sales?status=0&customerId=...&page=1&pageSize=10
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.SalesView)]
         public async Task<IActionResult> Get(
             [FromQuery] SaleStatus? status,
             [FromQuery] Guid? customerId,
@@ -57,6 +58,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Sales/{id}
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.SalesView)]
         public async Task<IActionResult> Get(Guid id)
         {
             var sale = await _saleService.GetByIdAsync(id);
@@ -66,6 +68,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Sales (crea en Draft)
         [HttpPost]
+        [Authorize(Policy = PermissionCodes.SalesCreate)]
         public async Task<IActionResult> Post([FromBody] CreateSaleDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -92,6 +95,7 @@ namespace SistemaERP.Api.Controllers
 
         // PUT: api/Sales/{id}
         [HttpPut("{id}")]
+        [Authorize(Policy = PermissionCodes.SalesEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdateSaleDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -120,6 +124,7 @@ namespace SistemaERP.Api.Controllers
         // POST: api/Sales/validate-stock
         // Validación previa de stock para que el frontend pueda chequear antes de confirmar.
         [HttpPost("validate-stock")]
+        [Authorize(Policy = PermissionCodes.SalesEdit)]
         public async Task<IActionResult> ValidateStock([FromBody] ValidateStockDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -153,6 +158,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Sales/{id}/confirm
         [HttpPost("{id}/confirm")]
+        [Authorize(Policy = PermissionCodes.SalesConfirm)]
         public async Task<IActionResult> Confirm(Guid id)
         {
             var userId = GetUserId();
@@ -171,6 +177,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Sales/{id}/cancel
         [HttpPost("{id}/cancel")]
+        [Authorize(Policy = PermissionCodes.SalesCancel)]
         public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelDto dto)
         {
             var userId = GetUserId();
@@ -189,6 +196,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Sales/{id}/register-payment
         [HttpPost("{id}/register-payment")]
+        [Authorize(Policy = PermissionCodes.SalesEdit)]
         public async Task<IActionResult> RegisterPayment(Guid id, [FromBody] RegisterPaymentDto dto)
         {
             var userId = GetUserId();
@@ -207,6 +215,7 @@ namespace SistemaERP.Api.Controllers
 
         // DELETE: api/Sales/{id}
         [HttpDelete("{id}")]
+        [Authorize(Policy = PermissionCodes.SalesDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
             try

@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { usePurchases, useDeletePurchase, useConfirmPurchase, useCancelPurchase } from '../hooks/usePurchases';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { PurchaseStatus, PURCHASE_STATUS_LABELS, type Purchase } from '../api/purchases';
@@ -17,6 +19,21 @@ const STATUS_BADGE: Record<PurchaseStatus, string> = {
 };
 
 export function PurchasesPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.PurchasesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <PurchasesContent />
+    </RequirePermission>
+  );
+}
+
+function PurchasesContent() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -86,7 +103,16 @@ export function PurchasesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Compras</h1>
-        <Button onClick={() => navigate('/compras/nueva')}>Nueva Compra</Button>
+        <RequirePermission
+          codes={PermissionCodes.PurchasesCreate}
+          fallback={
+            <span className="text-sm text-gray-500">
+              No tienes permiso para crear compras.
+            </span>
+          }
+        >
+          <Button onClick={() => navigate('/compras/nueva')}>Nueva Compra</Button>
+        </RequirePermission>
       </div>
 
       <div className="flex flex-wrap gap-4">
@@ -157,22 +183,30 @@ export function PurchasesPage() {
                   Ver
                 </Button>
                 {p.status === PurchaseStatus.Draft && (
-                  <Button variant="secondary" onClick={() => navigate(`/compras/${p.id}/editar`)}>
-                    Editar
-                  </Button>
+                  <RequirePermission codes={PermissionCodes.PurchasesEdit}>
+                    <Button variant="secondary" onClick={() => navigate(`/compras/${p.id}/editar`)}>
+                      Editar
+                    </Button>
+                  </RequirePermission>
                 )}
                 {p.status === PurchaseStatus.Draft && (
-                  <Button onClick={() => handleConfirm(p)}>Confirmar</Button>
+                  <RequirePermission codes={PermissionCodes.PurchasesConfirm}>
+                    <Button onClick={() => handleConfirm(p)}>Confirmar</Button>
+                  </RequirePermission>
                 )}
                 {p.status !== PurchaseStatus.Cancelled && (
-                  <Button variant="danger" onClick={() => handleCancel(p)}>
-                    Cancelar
-                  </Button>
+                  <RequirePermission codes={PermissionCodes.PurchasesCancel}>
+                    <Button variant="danger" onClick={() => handleCancel(p)}>
+                      Cancelar
+                    </Button>
+                  </RequirePermission>
                 )}
                 {p.status === PurchaseStatus.Draft && (
-                  <Button variant="danger" onClick={() => handleDelete(p)}>
-                    Eliminar
-                  </Button>
+                  <RequirePermission codes={PermissionCodes.PurchasesDelete}>
+                    <Button variant="danger" onClick={() => handleDelete(p)}>
+                      Eliminar
+                    </Button>
+                  </RequirePermission>
                 )}
               </div>
             ),

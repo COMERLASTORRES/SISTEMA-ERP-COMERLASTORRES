@@ -5,6 +5,8 @@ import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useCustomers,
   useCreateCustomer,
@@ -24,6 +26,21 @@ import {
 const PAGE_SIZE = 10;
 
 export function CustomersPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.CustomersView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <CustomersContent />
+    </RequirePermission>
+  );
+}
+
+function CustomersContent() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -148,7 +165,16 @@ export function CustomersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Clientes</h1>
-        <Button onClick={openCreate}>Nuevo Cliente</Button>
+        <RequirePermission
+          codes={PermissionCodes.CustomersCreate}
+          fallback={
+            <span className="text-sm text-gray-500">
+              No tienes permiso para crear clientes.
+            </span>
+          }
+        >
+          <Button onClick={openCreate}>Nuevo Cliente</Button>
+        </RequirePermission>
       </div>
 
       <Input
@@ -181,12 +207,16 @@ export function CustomersPage() {
             header: 'Acciones',
             accessor: (c) => (
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => openEdit(c)}>
-                  Editar
-                </Button>
-                <Button variant="danger" onClick={() => handleDelete(c)}>
-                  Eliminar
-                </Button>
+                <RequirePermission codes={PermissionCodes.CustomersEdit}>
+                  <Button variant="secondary" onClick={() => openEdit(c)}>
+                    Editar
+                  </Button>
+                </RequirePermission>
+                <RequirePermission codes={PermissionCodes.CustomersDelete}>
+                  <Button variant="danger" onClick={() => handleDelete(c)}>
+                    Eliminar
+                  </Button>
+                </RequirePermission>
               </div>
             ),
           },

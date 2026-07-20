@@ -5,6 +5,8 @@ import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import {
   useStockMovements,
@@ -26,6 +28,21 @@ const TYPE_BADGE: Record<StockMovementType, string> = {
 };
 
 export function StockMovementsPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.StockMovementsView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <StockMovementsContent />
+    </RequirePermission>
+  );
+}
+
+function StockMovementsContent() {
   const [page, setPage] = useState(1);
   const [productFilter, setProductFilter] = useState<string>(''); // '' = todos
   const [modalOpen, setModalOpen] = useState(false);
@@ -109,7 +126,9 @@ export function StockMovementsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Movimientos de Stock</h1>
-        <Button onClick={openCreate}>Nuevo Movimiento</Button>
+        <RequirePermission codes={PermissionCodes.StockMovementsCreate}>
+          <Button onClick={openCreate}>Nuevo Movimiento</Button>
+        </RequirePermission>
       </div>
 
       <div className="flex flex-col gap-1 max-w-xs">

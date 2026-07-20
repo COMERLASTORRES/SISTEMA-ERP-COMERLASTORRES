@@ -62,7 +62,8 @@ export const PermissionCodes = {
   CashRegisterMovement: 'cashregister.movement',
 
   // stockmovements
-  StockMovementsView: 'stockmovements.view',
+ StockMovementsView: 'stockmovements.view',
+  StockMovementsCreate: 'stockmovements.create',
   StockMovementsExport: 'stockmovements.export',
 
   // users

@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useCashRegisters } from '../hooks/useCashRegisters';
 import {
   CashRegisterStatus,
@@ -19,6 +21,21 @@ const STATUS_BADGE: Record<CashRegisterStatus, string> = {
 };
 
 export function CashRegisterHistoryPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.CashRegisterView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <CashRegisterHistoryContent />
+    </RequirePermission>
+  );
+}
+
+function CashRegisterHistoryContent() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
 

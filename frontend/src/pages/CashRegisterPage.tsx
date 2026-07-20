@@ -6,6 +6,8 @@ import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import {
   useOpenCashRegister,
   useOpenCashRegisterMutation,
@@ -32,6 +34,21 @@ function extractError(err: any): string {
 }
 
 export function CashRegisterPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.CashRegisterView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <CashRegisterContent />
+    </RequirePermission>
+  );
+}
+
+function CashRegisterContent() {
   const navigate = useNavigate();
   const { data: register, isLoading, isError, error } = useOpenCashRegister();
 
@@ -56,17 +73,19 @@ export function CashRegisterPage() {
       {formError && <ErrorMessage message={formError} />}
 
       {register == null ? (
-        <OpenCashRegisterForm
-          onOpen={async (payload) => {
-            setFormError('');
-            try {
-              await openMutation.mutateAsync(payload);
-            } catch (err: any) {
-              setFormError(extractError(err));
-            }
-          }}
-          pending={openMutation.isPending}
-        />
+        <RequirePermission codes={PermissionCodes.CashRegisterOpen}>
+          <OpenCashRegisterForm
+            onOpen={async (payload) => {
+              setFormError('');
+              try {
+                await openMutation.mutateAsync(payload);
+              } catch (err: any) {
+                setFormError(extractError(err));
+              }
+            }}
+            pending={openMutation.isPending}
+          />
+        </RequirePermission>
       ) : (
         <OpenCashRegisterDetail
           register={register}
@@ -185,12 +204,16 @@ function OpenCashRegisterDetail({ register, onRegisterMovement, onClose, movemen
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-800">Movimientos</h2>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setMovementModal(true)}>
-              Registrar Movimiento
-            </Button>
-            <Button variant="danger" onClick={() => setCloseModal(true)} disabled={closePending}>
-              Cerrar Caja
-            </Button>
+            <RequirePermission codes={PermissionCodes.CashRegisterMovement}>
+              <Button variant="secondary" onClick={() => setMovementModal(true)}>
+                Registrar Movimiento
+              </Button>
+            </RequirePermission>
+            <RequirePermission codes={PermissionCodes.CashRegisterClose}>
+              <Button variant="danger" onClick={() => setCloseModal(true)} disabled={closePending}>
+                Cerrar Caja
+              </Button>
+            </RequirePermission>
           </div>
         </div>
 

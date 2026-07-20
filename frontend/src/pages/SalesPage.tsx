@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
+import { RequirePermission } from '../components/RequirePermission';
+import { PermissionCodes } from '../api/permissionCodes';
 import { useSales, useDeleteSale, useConfirmSale, useCancelSale } from '../hooks/useSales';
 import { useCustomers } from '../hooks/useCustomers';
 import {
@@ -22,6 +24,21 @@ const STATUS_BADGE: Record<SaleStatus, string> = {
 };
 
 export function SalesPage() {
+  return (
+    <RequirePermission
+      codes={PermissionCodes.SalesView}
+      fallback={
+        <div className="p-6 text-center text-gray-600">
+          No tienes permiso para ver este módulo.
+        </div>
+      }
+    >
+      <SalesContent />
+    </RequirePermission>
+  );
+}
+
+function SalesContent() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -85,7 +102,9 @@ export function SalesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Ventas</h1>
-        <Button onClick={() => navigate('/ventas/nueva')}>Nueva Venta</Button>
+        <RequirePermission codes={PermissionCodes.SalesCreate}>
+          <Button onClick={() => navigate('/ventas/nueva')}>Nueva Venta</Button>
+        </RequirePermission>
       </div>
 
       <div className="flex flex-wrap gap-4">
@@ -137,22 +156,30 @@ export function SalesPage() {
                   Ver
                 </Button>
                 {s.status === SaleStatus.Draft && (
-                  <Button variant="secondary" onClick={() => navigate(`/ventas/${s.id}/editar`)}>
-                    Editar
-                  </Button>
+                  <RequirePermission codes={PermissionCodes.SalesEdit}>
+                    <Button variant="secondary" onClick={() => navigate(`/ventas/${s.id}/editar`)}>
+                      Editar
+                    </Button>
+                  </RequirePermission>
                 )}
                 {s.status === SaleStatus.Draft && (
-                  <Button onClick={() => handleConfirm(s)}>Confirmar</Button>
+                  <RequirePermission codes={PermissionCodes.SalesConfirm}>
+                    <Button onClick={() => handleConfirm(s)}>Confirmar</Button>
+                  </RequirePermission>
                 )}
                 {s.status !== SaleStatus.Cancelled && (
-                  <Button variant="danger" onClick={() => handleCancel(s)}>
-                    Cancelar
-                  </Button>
+                  <RequirePermission codes={PermissionCodes.SalesCancel}>
+                    <Button variant="danger" onClick={() => handleCancel(s)}>
+                      Cancelar
+                    </Button>
+                  </RequirePermission>
                 )}
                 {s.status === SaleStatus.Draft && (
-                  <Button variant="danger" onClick={() => handleDelete(s)}>
-                    Eliminar
-                  </Button>
+                  <RequirePermission codes={PermissionCodes.SalesDelete}>
+                    <Button variant="danger" onClick={() => handleDelete(s)}>
+                      Eliminar
+                    </Button>
+                  </RequirePermission>
                 )}
               </div>
             ),

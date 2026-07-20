@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using SistemaERP.Api.Models;
 using System;
@@ -11,7 +12,6 @@ using System.Threading.Tasks;
 namespace SistemaERP.Api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/[controller]")]
     public class PurchasesController : ControllerBase
     {
@@ -23,6 +23,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Purchases?status=0&supplierId=...&page=1&pageSize=10
         [HttpGet]
+        [Authorize(Policy = PermissionCodes.PurchasesView)]
         public async Task<IActionResult> Get(
             [FromQuery] PurchaseStatus? status,
             [FromQuery] Guid? supplierId,
@@ -56,6 +57,7 @@ namespace SistemaERP.Api.Controllers
 
         // GET: api/Purchases/{id}
         [HttpGet("{id}")]
+        [Authorize(Policy = PermissionCodes.PurchasesView)]
         public async Task<IActionResult> Get(Guid id)
         {
             var purchase = await _purchaseService.GetByIdAsync(id);
@@ -65,6 +67,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Purchases (crea en Draft)
         [HttpPost]
+        [Authorize(Policy = PermissionCodes.PurchasesCreate)]
         public async Task<IActionResult> Post([FromBody] CreatePurchaseDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -91,6 +94,7 @@ namespace SistemaERP.Api.Controllers
 
         // PUT: api/Purchases/{id}
         [HttpPut("{id}")]
+        [Authorize(Policy = PermissionCodes.PurchasesEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdatePurchaseDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -118,6 +122,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Purchases/{id}/confirm
         [HttpPost("{id}/confirm")]
+        [Authorize(Policy = PermissionCodes.PurchasesConfirm)]
         public async Task<IActionResult> Confirm(Guid id)
         {
             var userId = GetUserId();
@@ -136,6 +141,7 @@ namespace SistemaERP.Api.Controllers
 
         // POST: api/Purchases/{id}/cancel
         [HttpPost("{id}/cancel")]
+        [Authorize(Policy = PermissionCodes.PurchasesCancel)]
         public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelDto dto)
         {
             var userId = GetUserId();
@@ -154,6 +160,7 @@ namespace SistemaERP.Api.Controllers
 
         // DELETE: api/Purchases/{id}
         [HttpDelete("{id}")]
+        [Authorize(Policy = PermissionCodes.PurchasesDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
             try
