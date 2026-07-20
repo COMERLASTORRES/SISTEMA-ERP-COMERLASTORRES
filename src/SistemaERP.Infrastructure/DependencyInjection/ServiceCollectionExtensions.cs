@@ -45,6 +45,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Reports (servicios especializados por dominio; fachada en ReportsController).
+        services.AddScoped<SistemaERP.Application.Reports.Sales.ISalesReportRepository, SistemaERP.Infrastructure.Repositories.SalesReportRepository>();
+        services.AddScoped<SistemaERP.Application.Reports.Sales.ISalesReportService, SistemaERP.Application.Reports.Sales.SalesReportService>();
+
         services.AddDbContextInitializer();
 
         return services;

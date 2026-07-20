@@ -39,9 +39,15 @@ namespace SistemaERP.Infrastructure.Repositories
 
         // Carga el usuario junto con sus asignaciones de rol (UserRole). Necesario para
         // resolver los permisos efectivos sin dispersar la lógica de inclusión en los servicios.
+        // Se omite el filtro global multi-tenant de UserRole porque el userId ya acota al
+        // usuario correcto; de lo contrario, durante el login (donde el TenantProvider aún no
+        // resuelve el tenant desde el token) el filtro excluye todos los UserRole y el token
+        // se genera sin claims de permiso, provocando 403 en todos los endpoints protegidos.
+        // El IgnoreQueryFilters es local a esta consulta y no afecta otras queries.
         public async Task<User?> GetByIdWithRolesAsync(Guid id)
         {
             return await _context.Users
+                .IgnoreQueryFilters()
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .ThenInclude(r => r.RolePermissions)
