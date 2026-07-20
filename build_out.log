@@ -1,0 +1,21 @@
+  Determinando los proyectos que se van a restaurar...
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj : warning NU1603: SistemaERP.Application depende de Microsoft.Extensions.Logging (>= 8.0.16), pero no se encontró Microsoft.Extensions.Logging 8.0.16. Microsoft.Extensions.Logging 9.0.0 se resolvió en su lugar. [C:\Proyectos\SistemaERP\SistemaERP.slnx]
+  Todos los proyectos están actualizados para la restauración.
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj : warning NU1603: SistemaERP.Application depende de Microsoft.Extensions.Logging (>= 8.0.16), pero no se encontró Microsoft.Extensions.Logging 8.0.16. Microsoft.Extensions.Logging 9.0.0 se resolvió en su lugar.
+  SistemaERP.Domain -> C:\Proyectos\SistemaERP\src\SistemaERP.Domain\bin\Debug\net8.0\SistemaERP.Domain.dll
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\Services\UserService.cs(63,17): warning CS0618: 'User.Role' está obsoleto: 'Solo por compatibilidad. La autorización utiliza UserRole + Role + Permission.' [C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj]
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\Services\UserService.cs(228,17): warning CS0618: 'User.Role' está obsoleto: 'Solo por compatibilidad. La autorización utiliza UserRole + Role + Permission.' [C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj]
+  SistemaERP.Application -> C:\Proyectos\SistemaERP\src\SistemaERP.Application\bin\Debug\net8.0\SistemaERP.Application.dll
+  SistemaERP.Infrastructure -> C:\Proyectos\SistemaERP\src\SistemaERP.Infrastructure\bin\Debug\net8.0\SistemaERP.Infrastructure.dll
+  SistemaERP.Api -> C:\Proyectos\SistemaERP\src\SistemaERP.Api\bin\Debug\net8.0\SistemaERP.Api.dll
+
+Compilación correcta.
+
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj : warning NU1603: SistemaERP.Application depende de Microsoft.Extensions.Logging (>= 8.0.16), pero no se encontró Microsoft.Extensions.Logging 8.0.16. Microsoft.Extensions.Logging 9.0.0 se resolvió en su lugar. [C:\Proyectos\SistemaERP\SistemaERP.slnx]
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj : warning NU1603: SistemaERP.Application depende de Microsoft.Extensions.Logging (>= 8.0.16), pero no se encontró Microsoft.Extensions.Logging 8.0.16. Microsoft.Extensions.Logging 9.0.0 se resolvió en su lugar.
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\Services\UserService.cs(63,17): warning CS0618: 'User.Role' está obsoleto: 'Solo por compatibilidad. La autorización utiliza UserRole + Role + Permission.' [C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj]
+C:\Proyectos\SistemaERP\src\SistemaERP.Application\Services\UserService.cs(228,17): warning CS0618: 'User.Role' está obsoleto: 'Solo por compatibilidad. La autorización utiliza UserRole + Role + Permission.' [C:\Proyectos\SistemaERP\src\SistemaERP.Application\SistemaERP.Application.csproj]
+    4 Advertencia(s)
+    0 Errores
+
+Tiempo transcurrido 00:00:01.48

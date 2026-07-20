@@ -104,7 +104,8 @@ namespace SistemaERP.Application.Services
         }
 
         /// <summary>
-        /// Sincroniza el rol de sistema "Admin" de cada tenant: le agrega los códigos de
+        /// Sincroniza el rol de sistema de cada tenant (identificado por IsSystemRole == true,
+        /// no por su nombre, que puede variar entre tenants): le agrega los códigos de
         /// permiso recién incorporados al catálogo (ej. tras añadir users.* o roles.*) sin
         /// eliminar los que ya tuviera. Así un admin nunca pierde acceso por un nuevo permiso.
         /// Es idempotente y seguro de ejecutar en cada arranque.
@@ -120,7 +121,7 @@ namespace SistemaERP.Application.Services
             foreach (var tenant in tenants)
             {
                 var admin = (await _roleRepository.GetAllByTenantAsync(tenant.Id))
-                    .FirstOrDefault(r => r.IsSystemRole && r.Name == "Admin");
+                    .FirstOrDefault(r => r.IsSystemRole);
                 if (admin == null) continue;
 
                 var adminWithPerms = await _roleRepository.GetByIdWithPermissionsAsync(admin.Id);

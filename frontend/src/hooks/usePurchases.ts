@@ -3,19 +3,28 @@ import {
   purchasesApi,
   type Purchase,
   type PurchaseStatus,
+  type PaymentType,
+  type PaymentMethod,
   type CreatePurchasePayload,
   type UpdatePurchasePayload,
 } from '../api/purchases';
 
 const KEY = 'purchases';
 
-export function usePurchases(status?: number, supplierId?: string, page = 1, pageSize = 10) {
+export function usePurchases(
+  status?: number,
+  supplierId?: string,
+  paymentType?: number,
+  page = 1,
+  pageSize = 10,
+) {
   return useQuery({
-    queryKey: [KEY, status ?? 'all', supplierId ?? 'all', page, pageSize],
+    queryKey: [KEY, status ?? 'all', supplierId ?? 'all', paymentType ?? 'all', page, pageSize],
     queryFn: async () => {
       const { data } = await purchasesApi.getAll(
         status as PurchaseStatus | undefined,
         supplierId,
+        paymentType as PaymentType | undefined,
         page,
         pageSize,
       );
@@ -65,6 +74,15 @@ export function useCancelPurchase() {
   return useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string | null }) =>
       purchasesApi.cancel(id, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
+export function useRegisterPurchasePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paymentMethod }: { id: string; paymentMethod: PaymentMethod }) =>
+      purchasesApi.registerPayment(id, paymentMethod),
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   });
 }

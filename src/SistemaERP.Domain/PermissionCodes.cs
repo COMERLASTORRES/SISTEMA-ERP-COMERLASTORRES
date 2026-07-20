@@ -49,6 +49,7 @@ public static class PermissionCodes
     public const string PurchasesCancel = "purchases.cancel";
     public const string PurchasesExport = "purchases.export";
     public const string PurchasesManage = "purchases.manage";
+    public const string PurchasesRegisterPayment = "purchases.registerpayment";
 
     // sales
     public const string SalesView = "sales.view";

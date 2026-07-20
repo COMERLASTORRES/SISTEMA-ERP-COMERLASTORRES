@@ -278,6 +278,73 @@ namespace SistemaERP.Application.Services
             await _purchaseRepository.DeleteAsync(purchaseId);
         }
 
+        /// <summary>
+        /// Registra el PAGO TOTAL de una compra a crédito, generando un EGRESO de
+        /// caja en la misma transacción. Versión simplificada previa al módulo completo
+        /// de Cuentas por Pagar: solo cubre el pago total (PaymentStatus = Paid). El
+        /// futuro módulo usará una entidad PurchasePayment para pagos parciales, múltiples
+        /// métodos/pagos por compra, reversión individual e historial. La arquitectura
+        /// actual queda preparada para esa evolución sin cambios estructurales en la
+        /// entidad Purchase.
+        /// </summary>
+        public async Task RegisterFullPaymentAsync(Guid purchaseId, Guid userId, PaymentMethod paymentMethod)
+        {
+            var purchase = await _purchaseRepository.GetByIdAsync(purchaseId);
+            if (purchase == null)
+                throw new InvalidOperationException("La compra no existe.");
+
+            if (purchase.Status != PurchaseStatus.Confirmed)
+                throw new InvalidOperationException("Solo se puede registrar el pago de una compra confirmada.");
+
+            if (purchase.PaymentType != PaymentType.Credit)
+                throw new InvalidOperationException("Solo las compras a crédito pueden registrar pagos.");
+
+            if (purchase.PaymentStatus == PaymentStatus.Paid)
+                throw new InvalidOperationException("Esta compra ya fue pagada.");
+
+            // La caja abierta del usuario es pre-requisito (mismo patrón que ConfirmAsync
+            // y que SaleService.RegisterFullPaymentAsync). Se resuelve ANTES de tocar la
+            // caja para fallar temprano sin efectos parciales.
+            var openCashRegister = await _cashRegisterService.GetOpenCashRegisterForUserAsync(
+                purchase.TenantId, userId);
+            if (openCashRegister == null)
+                throw new InvalidOperationException("Debe abrir una caja antes de registrar un pago.");
+
+            // Transacción: registrar el egreso de caja y marcar la compra como pagada,
+            // de forma atómica.
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                await _cashRegisterService.RegisterMovementAsync(
+                    cashRegisterId: openCashRegister.Id,
+                    type: CashMovementType.Expense,
+                    reason: MovementReason.SupplierPayment,
+                    paymentMethod: paymentMethod,
+                    amount: purchase.Total,
+                    description: $"Pago de compra {purchase.PurchaseNumber}",
+                    saleId: null,
+                    userId: userId,
+                    purchaseId: purchase.Id);
+
+                // Transición de estado encapsulada en la entidad de dominio (no se
+                // modifica PaymentStatus en forma directa desde el Service).
+                purchase.RegisterFullPayment(userId);
+
+                await _purchaseRepository.UpdateAsync(purchase);
+                await _unitOfWork.CommitAsync();
+
+                _logger.LogInformation("Full payment registered for purchase {PurchaseNumber} by user {UserId}.",
+                    purchase.PurchaseNumber, userId);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackAsync();
+                _logger.LogError(ex, "Purchase {PurchaseId} payment registration failed. Rolling back.", purchaseId);
+                throw new InvalidOperationException(
+                    "No se pudo registrar el pago. Se revirtió la operación.", ex);
+            }
+        }
+
         // --- Helpers ---
 
         private async Task<string> GenerateNextPurchaseNumberAsync(Guid tenantId)

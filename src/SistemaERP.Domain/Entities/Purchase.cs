@@ -75,7 +75,29 @@ public class Purchase : AuditableEntity
     public DateTime? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }
 
+    // Auditoría de pago total (espejo de Sale.PaidBy/PaidAt, pero con parámetro de
+    // usuario para encapsular la transición de estado en la propia entidad).
+    public Guid? PaidBy { get; set; }
+    public DateTime? PaidAt { get; set; }
+
     public ICollection<PurchaseItem> Items { get; set; } = new List<PurchaseItem>();
+
+    /// <summary>
+    /// Transición de dominio para el PAGO TOTAL de la compra. Solo válida/marca el
+    /// estado de pago; la generación del egreso de caja y la transacción atómica
+    /// correspondiente las resuelve el Service (Parte 1). Deja PaymentStatus = Paid,
+    /// PaidBy y PaidAt registrados para auditoría.
+    ///
+    /// Esta implementación corresponde únicamente al pago total. El diseño queda
+    /// preparado para una futura entidad PurchasePayment que permita pagos parciales
+    /// (PaymentStatus = Partial), múltiples pagos y un historial de cobros/pagos.
+    /// </summary>
+    public void RegisterFullPayment(Guid userId)
+    {
+        PaymentStatus = PaymentStatus.Paid;
+        PaidBy = userId;
+        PaidAt = DateTime.UtcNow;
+    }
 
     // REGLA DE NEGOCIO: una compra en estado Confirmed no se puede editar; solo se permite
     // cambiar su Status a Cancelled. Solo las compras en Draft son editables.

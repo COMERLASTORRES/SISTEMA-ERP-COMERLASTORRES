@@ -8,7 +8,7 @@ import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
 import { usePurchases, useDeletePurchase, useConfirmPurchase, useCancelPurchase } from '../hooks/usePurchases';
 import { useSuppliers } from '../hooks/useSuppliers';
-import { PurchaseStatus, PURCHASE_STATUS_LABELS, type Purchase } from '../api/purchases';
+import { PurchaseStatus, PaymentType, PURCHASE_STATUS_LABELS, PAYMENT_TYPE_LABELS, type Purchase } from '../api/purchases';
 
 const PAGE_SIZE = 10;
 
@@ -38,6 +38,7 @@ function PurchasesContent() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('');
 
   const { data: suppliersData } = useSuppliers(1, 1000);
   const suppliers = suppliersData?.items ?? [];
@@ -55,6 +56,7 @@ function PurchasesContent() {
   } = usePurchases(
     statusFilter === '' ? undefined : Number(statusFilter),
     supplierFilter || undefined,
+    paymentTypeFilter === '' ? undefined : Number(paymentTypeFilter),
     page,
     PAGE_SIZE,
   );
@@ -151,6 +153,22 @@ function PurchasesContent() {
             ))}
           </select>
         </div>
+
+        <div className="flex flex-col gap-1 max-w-xs">
+          <label className="text-sm font-medium text-gray-700">Tipo de Pago</label>
+          <select
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={paymentTypeFilter}
+            onChange={(e) => {
+              setPaymentTypeFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">Todos</option>
+            <option value={PaymentType.Cash}>{PAYMENT_TYPE_LABELS[PaymentType.Cash]}</option>
+            <option value={PaymentType.Credit}>{PAYMENT_TYPE_LABELS[PaymentType.Credit]}</option>
+          </select>
+        </div>
       </div>
 
       <Table<Purchase>
@@ -174,6 +192,10 @@ function PurchasesContent() {
                 {PURCHASE_STATUS_LABELS[p.status]}
               </span>
             ),
+          },
+          {
+            header: 'Tipo de Pago',
+            accessor: (p) => PAYMENT_TYPE_LABELS[p.paymentType],
           },
           {
             header: 'Acciones',

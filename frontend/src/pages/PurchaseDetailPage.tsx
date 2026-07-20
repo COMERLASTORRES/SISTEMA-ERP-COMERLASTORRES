@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
+import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
@@ -12,12 +14,15 @@ import {
   usePurchase,
   useConfirmPurchase,
   useCancelPurchase,
+  useRegisterPurchasePayment,
 } from '../hooks/usePurchases';
 import {
   PurchaseStatus,
   VoucherType,
   Currency,
   PaymentType,
+  PaymentMethod,
+  PaymentStatus,
   PURCHASE_STATUS_LABELS,
   PAYMENT_TYPE_LABELS,
   PAYMENT_METHOD_LABELS,
@@ -65,12 +70,47 @@ function PurchaseDetailContent() {
   const { data: purchase, isLoading, isError, error } = usePurchase(id);
   const confirmMutation = useConfirmPurchase();
   const cancelMutation = useCancelPurchase();
+  const registerPaymentMutation = useRegisterPurchasePayment();
   const { data: openCashRegister } = useOpenCashRegister();
+
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>(
+    PaymentMethod.Cash,
+  );
 
   // Para compras al contado, cancelar genera un ingreso de caja inverso, por lo que
   // requiere una caja abierta del usuario (igual que confirmar). Crédito no aplica.
   const cashBlockedForCancel =
     purchase?.paymentType === PaymentType.Cash && openCashRegister == null;
+
+  // El pago de compras a crédito registra un egreso de caja, por lo que requiere
+  // una caja abierta del usuario (mismo patrón que registrar cobro de ventas).
+  const cashBlockedForPayment =
+    purchase?.paymentType === PaymentType.Credit && openCashRegister == null;
+
+  const canRegisterPayment =
+    purchase?.status === PurchaseStatus.Confirmed &&
+    purchase?.paymentType === PaymentType.Credit &&
+    purchase?.paymentStatus === PaymentStatus.Pending;
+
+  const [formError, setFormError] = useState('');
+
+  const handleOpenPaymentModal = () => {
+    if (!id || !canRegisterPayment) return;
+    if (cashBlockedForPayment) return;
+    setSelectedPaymentMethod(PaymentMethod.Cash);
+    setPaymentModalOpen(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!id) return;
+    try {
+      await registerPaymentMutation.mutateAsync({ id, paymentMethod: selectedPaymentMethod });
+      setPaymentModalOpen(false);
+    } catch (err: any) {
+      setFormError(extractError(err));
+    }
+  };
 
   const supplierName = (sid: string) => suppliers.find((s) => s.id === sid)?.name ?? sid;
   const productName = (pid: string) => products.find((p) => p.id === pid)?.name ?? pid;
@@ -219,6 +259,22 @@ function PurchaseDetailContent() {
         )}
         {purchase.status === PurchaseStatus.Confirmed && (
           <>
+            <RequirePermission codes={PermissionCodes.PurchasesRegisterPayment}>
+              <Button
+                onClick={handleOpenPaymentModal}
+                disabled={registerPaymentMutation.isPending || cashBlockedForPayment}
+              >
+                Registrar Pago
+              </Button>
+            </RequirePermission>
+            {canRegisterPayment && cashBlockedForPayment && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <span>Debe abrir una caja antes de registrar un pago.</span>
+                <Button variant="secondary" onClick={() => navigate('/caja')}>
+                  Ir a Caja
+                </Button>
+              </div>
+            )}
             <RequirePermission codes={PermissionCodes.PurchasesCancel}>
               <Button
                 variant="danger"
@@ -242,6 +298,48 @@ function PurchaseDetailContent() {
           Volver
         </Button>
       </div>
+
+      <Modal open={paymentModalOpen} title="Registrar Pago" onClose={() => setPaymentModalOpen(false)}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Seleccione el método de pago para el pago total de{' '}
+            <strong>S/ {purchase.total.toFixed(2)}</strong>.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                PaymentMethod.Cash,
+                PaymentMethod.Card,
+                PaymentMethod.Transfer,
+                PaymentMethod.YapePlin,
+                PaymentMethod.Other,
+              ] as PaymentMethod[]
+            ).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setSelectedPaymentMethod(m)}
+                className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                  selectedPaymentMethod === m
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {PAYMENT_METHOD_LABELS[m]}
+              </button>
+            ))}
+          </div>
+          {formError && <ErrorMessage message={formError} />}
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setPaymentModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmPayment} disabled={registerPaymentMutation.isPending}>
+              Confirmar Pago
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

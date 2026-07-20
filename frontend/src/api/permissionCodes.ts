@@ -44,6 +44,7 @@ export const PermissionCodes = {
   PurchasesCancel: 'purchases.cancel',
   PurchasesExport: 'purchases.export',
   PurchasesManage: 'purchases.manage',
+  PurchasesRegisterPayment: 'purchases.registerpayment',
 
   // sales
   SalesView: 'sales.view',

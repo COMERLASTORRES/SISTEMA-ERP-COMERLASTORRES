@@ -21,12 +21,13 @@ namespace SistemaERP.Api.Controllers
             _purchaseService = purchaseService;
         }
 
-        // GET: api/Purchases?status=0&supplierId=...&page=1&pageSize=10
+        // GET: api/Purchases?status=0&supplierId=...&paymentType=1&page=1&pageSize=10
         [HttpGet]
         [Authorize(Policy = PermissionCodes.PurchasesView)]
         public async Task<IActionResult> Get(
             [FromQuery] PurchaseStatus? status,
             [FromQuery] Guid? supplierId,
+            [FromQuery] PaymentType? paymentType,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
@@ -39,6 +40,8 @@ namespace SistemaERP.Api.Controllers
                 all = all.Where(p => p.Status == status.Value);
             if (supplierId.HasValue)
                 all = all.Where(p => p.SupplierId == supplierId.Value);
+            if (paymentType.HasValue)
+                all = all.Where(p => p.PaymentType == paymentType.Value);
 
             var total = all.Count();
             var items = all
@@ -150,6 +153,25 @@ namespace SistemaERP.Api.Controllers
             try
             {
                 await _purchaseService.CancelAsync(id, userId, dto?.Reason);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // POST: api/Purchases/{id}/register-payment
+        [HttpPost("{id}/register-payment")]
+        [Authorize(Policy = PermissionCodes.PurchasesRegisterPayment)]
+        public async Task<IActionResult> RegisterPayment(Guid id, [FromBody] RegisterPaymentDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
+
+            try
+            {
+                await _purchaseService.RegisterFullPaymentAsync(id, userId, dto.PaymentMethod);
                 return NoContent();
             }
             catch (InvalidOperationException ex)

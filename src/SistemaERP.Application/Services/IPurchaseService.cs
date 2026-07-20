@@ -12,5 +12,6 @@ public interface IPurchaseService
     Task<Purchase> UpdateDraftAsync(Purchase purchase);
     Task ConfirmAsync(Guid purchaseId, Guid userId);
     Task CancelAsync(Guid purchaseId, Guid userId, string? reason = null);
+    Task RegisterFullPaymentAsync(Guid purchaseId, Guid userId, PaymentMethod paymentMethod);
     Task DeleteAsync(Guid purchaseId);
 }

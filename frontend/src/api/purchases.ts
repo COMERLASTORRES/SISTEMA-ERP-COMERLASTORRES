@@ -135,9 +135,15 @@ export interface PagedResult<T> {
 }
 
 export const purchasesApi = {
-  getAll: (status?: PurchaseStatus, supplierId?: string, page = 1, pageSize = 10) =>
+  getAll: (
+    status?: PurchaseStatus,
+    supplierId?: string,
+    paymentType?: PaymentType,
+    page = 1,
+    pageSize = 10,
+  ) =>
     api.get<PagedResult<Purchase>>('/api/Purchases', {
-      params: { status, supplierId, page, pageSize },
+      params: { status, supplierId, paymentType, page, pageSize },
     }),
 
   getById: (id: string) => api.get<Purchase>(`/api/Purchases/${id}`),
@@ -151,6 +157,9 @@ export const purchasesApi = {
 
   cancel: (id: string, reason?: string | null) =>
     api.post<void>(`/api/Purchases/${id}/cancel`, reason ? { reason } : {}),
+
+  registerPayment: (id: string, paymentMethod: PaymentMethod) =>
+    api.post<void>(`/api/Purchases/${id}/register-payment`, { paymentMethod }),
 
   remove: (id: string) => api.delete<void>(`/api/Purchases/${id}`),
 };
