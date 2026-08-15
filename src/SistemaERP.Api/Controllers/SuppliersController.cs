@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Services;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using System;
@@ -59,16 +60,16 @@ namespace SistemaERP.Api.Controllers
         // POST: api/Suppliers
         [HttpPost]
         [Authorize(Policy = PermissionCodes.SuppliersCreate)]
-        public async Task<IActionResult> Post([FromBody] Supplier model)
+        public async Task<IActionResult> Post([FromBody] CreateSupplierDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
+
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
-            model.TenantId = tenantId;
 
             try
             {
-                var created = await _supplierService.CreateAsync(model);
+                var created = await _supplierService.CreateAsync(dto, tenantId);
                 return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
             }
             catch (InvalidOperationException ex)
@@ -80,26 +81,20 @@ namespace SistemaERP.Api.Controllers
         // PUT: api/Suppliers/{id}
         [HttpPut("{id}")]
         [Authorize(Policy = PermissionCodes.SuppliersEdit)]
-        public async Task<IActionResult> Put(Guid id, [FromBody] Supplier model)
+        public async Task<IActionResult> Put(Guid id, [FromBody] UpdateSupplierDto dto)
         {
-            if (id != model.Id) return BadRequest("ID mismatch");
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
+
             var existing = await _supplierService.GetByIdAsync(id);
             if (existing == null) return NotFound();
 
-            // Map fields
-            existing.DocumentType = model.DocumentType;
-            existing.DocumentNumber = model.DocumentNumber;
-            existing.Name = model.Name;
-            existing.Email = model.Email;
-            existing.Phone = model.Phone;
-            existing.Address = model.Address;
-            existing.ContactPerson = model.ContactPerson;
-            existing.PaymentTermDays = model.PaymentTermDays;
-            existing.IsActive = model.IsActive;
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (id != dto.Id) return BadRequest("ID mismatch");
 
             try
             {
-                await _supplierService.UpdateAsync(existing);
+                await _supplierService.UpdateAsync(dto);
                 return NoContent();
             }
             catch (InvalidOperationException ex)

@@ -83,9 +83,14 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.ProductsEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] Product model)
         {
-            if (id != model.Id) return BadRequest("ID mismatch");
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
+
             var existing = await _productService.GetByIdAsync(id);
             if (existing == null) return NotFound();
+
+            if (id != model.Id) return BadRequest("ID mismatch");
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
             // Map fields
             existing.Code = model.Code;
