@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Hosting;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain;
-using SistemaERP.Domain.Entities;
 using System;
-using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -60,16 +58,16 @@ namespace SistemaERP.Api.Controllers
         // POST: api/Products
         [HttpPost]
         [Authorize(Policy = PermissionCodes.ProductsCreate)]
-        public async Task<IActionResult> Post([FromBody] Product model)
+        public async Task<IActionResult> Post([FromBody] CreateProductDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
-            model.TenantId = tenantId;
+
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
             try
             {
-                var created = await _productService.CreateAsync(model);
+                var created = await _productService.CreateAsync(dto, tenantId);
                 return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
             }
             catch (InvalidOperationException ex)
@@ -81,7 +79,7 @@ namespace SistemaERP.Api.Controllers
         // PUT: api/Products/{id}
         [HttpPut("{id}")]
         [Authorize(Policy = PermissionCodes.ProductsEdit)]
-        public async Task<IActionResult> Put(Guid id, [FromBody] Product model)
+        public async Task<IActionResult> Put(Guid id, [FromBody] UpdateProductDto dto)
         {
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
@@ -89,22 +87,12 @@ namespace SistemaERP.Api.Controllers
             var existing = await _productService.GetByIdAsync(id);
             if (existing == null) return NotFound();
 
-            if (id != model.Id) return BadRequest("ID mismatch");
+            if (id != dto.Id) return BadRequest("ID mismatch");
             if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            // Map fields
-            existing.Code = model.Code;
-            existing.Name = model.Name;
-            existing.Barcode = model.Barcode;
-            existing.PurchasePrice = model.PurchasePrice;
-            existing.SalePrice = model.SalePrice;
-            existing.Stock = model.Stock;
-            existing.StockMinimum = model.StockMinimum;
-            existing.IsActive = model.IsActive;
 
             try
             {
-                await _productService.UpdateAsync(existing);
+                await _productService.UpdateAsync(dto);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
