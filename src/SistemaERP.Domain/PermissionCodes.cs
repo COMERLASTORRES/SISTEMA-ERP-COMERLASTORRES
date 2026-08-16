@@ -88,4 +88,11 @@ public static class PermissionCodes
     // reports
     public const string ReportsView = "reports.view";
     public const string ReportsExport = "reports.export";
+
+    // settings
+    public const string SettingsView = "settings.view";
+    public const string SettingsEdit = "settings.edit";
+
+    // audit logs
+    public const string AuditLogsView = "auditlogs.view";
 }

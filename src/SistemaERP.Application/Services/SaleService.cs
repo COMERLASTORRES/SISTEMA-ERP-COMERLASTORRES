@@ -22,6 +22,7 @@ namespace SistemaERP.Application.Services
         private readonly ITenantService _tenantService;
         private readonly ICashRegisterService _cashRegisterService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IAuditService _auditService;
         private readonly ILogger<SaleService> _logger;
 
         public SaleService(
@@ -33,6 +34,7 @@ namespace SistemaERP.Application.Services
             ITenantService tenantService,
             ICashRegisterService cashRegisterService,
             IUnitOfWork unitOfWork,
+            IAuditService auditService,
             ILogger<SaleService> logger)
         {
             _saleRepository = saleRepository;
@@ -43,6 +45,7 @@ namespace SistemaERP.Application.Services
             _tenantService = tenantService;
             _cashRegisterService = cashRegisterService;
             _unitOfWork = unitOfWork;
+            _auditService = auditService;
             _logger = logger;
         }
 
@@ -82,7 +85,17 @@ namespace SistemaERP.Application.Services
             _logger.LogInformation("Creating sale draft {SaleNumber} for tenant {TenantId}.",
                 sale.SaleNumber, sale.TenantId);
 
-            return await _saleRepository.AddAsync(sale);
+            var created = await _saleRepository.AddAsync(sale);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "SaleCreated",
+                "Sale",
+                created.Id,
+                new { created.SaleNumber, created.CustomerId, created.Total, created.Status },
+                userId: userId);
+
+            return created;
         }
 
         public async Task<Sale> UpdateDraftAsync(UpdateSaleDto dto, Guid tenantId)
@@ -257,6 +270,14 @@ namespace SistemaERP.Application.Services
 
                 _logger.LogInformation("Sale {SaleNumber} confirmed by user {UserId}.",
                     sale.SaleNumber, userId);
+
+                await _auditService.LogAsync(
+                    sale.TenantId,
+                    "SaleConfirmed",
+                    "Sale",
+                    sale.Id,
+                    new { sale.SaleNumber, sale.Total, sale.Status, sale.PaymentType },
+                    userId: userId);
             }
             catch (Exception ex)
             {
@@ -392,6 +413,14 @@ namespace SistemaERP.Application.Services
 
                 _logger.LogInformation("Sale {SaleNumber} cancelled by user {UserId}. Stock and cash reverted.",
                     sale.SaleNumber, userId);
+
+                await _auditService.LogAsync(
+                    sale.TenantId,
+                    "SaleCancelled",
+                    "Sale",
+                    sale.Id,
+                    new { sale.SaleNumber, sale.CancellationReason },
+                    userId: userId);
             }
             catch (Exception ex)
             {
@@ -421,6 +450,14 @@ namespace SistemaERP.Application.Services
                     "Solo se puede eliminar una venta en estado Borrador (Draft). Las ventas confirmadas o canceladas nunca se borran físicamente, por trazabilidad.");
 
             await _saleRepository.DeleteAsync(saleId);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "SaleDeleted",
+                "Sale",
+                saleId,
+                new { sale.SaleNumber, sale.Status },
+                userId: null); // No userId available in this method
         }
 
         // --- Helpers ---

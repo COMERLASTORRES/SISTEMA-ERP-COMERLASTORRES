@@ -19,6 +19,7 @@ namespace SistemaERP.Application.Services
         private readonly IPermissionRepository _permissionRepository;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
+        private readonly IAuditService _auditService;
         private readonly ILogger<UserService> _logger;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IConfiguration _configuration;
@@ -30,6 +31,7 @@ namespace SistemaERP.Application.Services
             IPermissionRepository permissionRepository,
             IRefreshTokenRepository refreshTokenRepository,
             IPasswordResetTokenRepository passwordResetTokenRepository,
+            IAuditService auditService,
             ILogger<UserService> logger,
             IUnitOfWork unitOfWork,
             IConfiguration configuration)
@@ -40,6 +42,7 @@ namespace SistemaERP.Application.Services
             _permissionRepository = permissionRepository;
             _refreshTokenRepository = refreshTokenRepository;
             _passwordResetTokenRepository = passwordResetTokenRepository;
+            _auditService = auditService;
             _logger = logger;
             _unitOfWork = unitOfWork;
             _configuration = configuration;
@@ -93,6 +96,15 @@ namespace SistemaERP.Application.Services
                 await _unitOfWork.CommitAsync();
 
                 _logger.LogInformation("Registered admin user {Email} for tenant {TenantId}.", email, tenant.Id);
+
+                await _auditService.LogAsync(
+                    tenant.Id,
+                    "UserCreated",
+                    "User",
+                    user.Id,
+                    new { user.Email, user.FullName, user.TenantId, user.Role },
+                    userId: user.Id);
+
                 return user;
             }
             catch (Exception ex)
@@ -219,6 +231,14 @@ namespace SistemaERP.Application.Services
 
             _logger.LogInformation("Assigned {Count} roles to user {UserId}.", validIds.Count, userId);
             await _userRepository.UpdateAsync(user);
+
+            await _auditService.LogAsync(
+                user.TenantId,
+                "UserRolesAssigned",
+                "User",
+                userId,
+                new { roleIds = validIds },
+                userId: userId);
         }
 
         // Unión de los permisos de todos los roles del usuario (sin duplicados).
@@ -260,7 +280,18 @@ namespace SistemaERP.Application.Services
             };
 
             _logger.LogInformation("Creating user {Email} for tenant {TenantId}.", user.Email, tenantId);
-            return await _userRepository.AddAsync(user);
+
+            var created = await _userRepository.AddAsync(user);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "UserCreated",
+                "User",
+                created.Id,
+                new { created.Email, created.FullName, created.TenantId, created.Role },
+                userId: created.Id);
+
+            return created;
         }
 
         // Actualiza datos básicos del usuario (nombre y estado activo).
@@ -269,11 +300,25 @@ namespace SistemaERP.Application.Services
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null) throw new InvalidOperationException("El usuario no existe.");
 
+            var oldFullName = user.FullName;
+            var oldIsActive = user.IsActive;
+
             user.FullName = fullName.Trim();
             user.IsActive = isActive;
 
             _logger.LogInformation("Updating user {UserId}.", userId);
-            return await _userRepository.UpdateAsync(user);
+
+            var updated = await _userRepository.UpdateAsync(user);
+
+            await _auditService.LogAsync(
+                user.TenantId,
+                "UserUpdated",
+                "User",
+                user.Id,
+                new { oldFullName, oldIsActive, newFullName = user.FullName, newIsActive = user.IsActive },
+                userId: userId);
+
+            return updated;
         }
 
         // Obtiene el Tenant por su Id (incluye el nombre).
@@ -537,6 +582,14 @@ namespace SistemaERP.Application.Services
             await _unitOfWork.SaveChangesAsync();
 
             _logger.LogInformation("Password reset completed for user {UserId}. All refresh tokens revoked.", user.Id);
+
+            await _auditService.LogAsync(
+                user.TenantId,
+                "PasswordResetCompleted",
+                "User",
+                user.Id,
+                new { user.Email },
+                userId: user.Id);
 
             return PasswordResetResult.Ok();
         }

@@ -19,6 +19,7 @@ namespace SistemaERP.Application.Services
         private readonly ITenantService _tenantService;
         private readonly ICashRegisterService _cashRegisterService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IAuditService _auditService;
         private readonly ILogger<PurchaseService> _logger;
 
         public PurchaseService(
@@ -28,6 +29,7 @@ namespace SistemaERP.Application.Services
             ITenantService tenantService,
             ICashRegisterService cashRegisterService,
             IUnitOfWork unitOfWork,
+            IAuditService auditService,
             ILogger<PurchaseService> logger)
         {
             _purchaseRepository = purchaseRepository;
@@ -36,6 +38,7 @@ namespace SistemaERP.Application.Services
             _tenantService = tenantService;
             _cashRegisterService = cashRegisterService;
             _unitOfWork = unitOfWork;
+            _auditService = auditService;
             _logger = logger;
         }
 
@@ -75,7 +78,17 @@ namespace SistemaERP.Application.Services
             _logger.LogInformation("Creating purchase draft {PurchaseNumber} for tenant {TenantId}.",
                 purchase.PurchaseNumber, purchase.TenantId);
 
-            return await _purchaseRepository.AddAsync(purchase);
+            var created = await _purchaseRepository.AddAsync(purchase);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "PurchaseCreated",
+                "Purchase",
+                created.Id,
+                new { created.PurchaseNumber, created.SupplierId, created.Total, created.Status },
+                userId: userId);
+
+            return created;
         }
 
         public async Task<Purchase> UpdateDraftAsync(UpdatePurchaseDto dto, Guid tenantId)
@@ -198,6 +211,14 @@ namespace SistemaERP.Application.Services
 
                 _logger.LogInformation("Purchase {PurchaseNumber} confirmed by user {UserId}.",
                     purchase.PurchaseNumber, userId);
+
+                await _auditService.LogAsync(
+                    purchase.TenantId,
+                    "PurchaseConfirmed",
+                    "Purchase",
+                    purchase.Id,
+                    new { purchase.PurchaseNumber, purchase.Total, purchase.Status, purchase.PaymentType },
+                    userId: userId);
             }
             catch (Exception ex)
             {
@@ -273,6 +294,14 @@ namespace SistemaERP.Application.Services
 
                 _logger.LogInformation("Purchase {PurchaseNumber} cancelled by user {UserId}. Stock and cash reverted.",
                     purchase.PurchaseNumber, userId);
+
+                await _auditService.LogAsync(
+                    purchase.TenantId,
+                    "PurchaseCancelled",
+                    "Purchase",
+                    purchase.Id,
+                    new { purchase.PurchaseNumber, purchase.CancellationReason },
+                    userId: userId);
             }
             catch (Exception ex)
             {
@@ -302,6 +331,14 @@ namespace SistemaERP.Application.Services
                     "Solo se puede eliminar una compra en estado Borrador (Draft). Las compras confirmadas o canceladas nunca se borran físicamente, por trazabilidad.");
 
             await _purchaseRepository.DeleteAsync(purchaseId);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "PurchaseDeleted",
+                "Purchase",
+                purchaseId,
+                new { purchase.PurchaseNumber, purchase.Status },
+                userId: null);
         }
 
         /// <summary>

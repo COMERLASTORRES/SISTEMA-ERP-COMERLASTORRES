@@ -14,12 +14,14 @@ public class ProductService : IProductService
 {
     private readonly IProductRepository _productRepository;
     private readonly ICategoryRepository _categoryRepository;
+    private readonly IAuditService _auditService;
     private readonly ILogger<ProductService> _logger;
 
-    public ProductService(IProductRepository productRepository, ICategoryRepository categoryRepository, ILogger<ProductService> logger)
+    public ProductService(IProductRepository productRepository, ICategoryRepository categoryRepository, IAuditService auditService, ILogger<ProductService> logger)
     {
         _productRepository = productRepository;
         _categoryRepository = categoryRepository;
+        _auditService = auditService;
         _logger = logger;
     }
 
@@ -73,7 +75,17 @@ public class ProductService : IProductService
         };
 
         _logger.LogInformation("Creating product {ProductCode} for tenant {TenantId}.", dto.Code, tenantId);
-        return await _productRepository.AddAsync(product);
+        var created = await _productRepository.AddAsync(product);
+
+        await _auditService.LogAsync(
+            tenantId,
+            "ProductCreated",
+            "Product",
+            created.Id,
+            new { created.Code, created.Name, created.SalePrice, created.PurchasePrice },
+            userId: null); // No userId available in this method signature
+
+        return created;
     }
 
     public async Task<Product> UpdateAsync(UpdateProductDto dto)
@@ -120,7 +132,17 @@ public class ProductService : IProductService
             existingProduct.IsActive = dto.IsActive;
 
             _logger.LogInformation("Updating product {ProductId}.", dto.Id);
-            return await _productRepository.UpdateAsync(existingProduct);
+            var updated = await _productRepository.UpdateAsync(existingProduct);
+
+            await _auditService.LogAsync(
+                existingProduct.TenantId,
+                "ProductUpdated",
+                "Product",
+                updated.Id,
+                new { updated.Code, updated.Name, updated.SalePrice, updated.PurchasePrice, updated.IsActive },
+                userId: null);
+
+            return updated;
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -134,7 +156,27 @@ public class ProductService : IProductService
         try
         {
             _logger.LogInformation("Deleting product {ProductId}.", id);
+            
+            // Get product first to capture details and tenantId
+            var product = await _productRepository.GetByIdAsync(id);
+            if (product == null)
+            {
+                throw new InvalidOperationException("Product not found.");
+            }
+
+            var tenantId = product.TenantId;
+            var code = product.Code;
+            var name = product.Name;
+
             await _productRepository.DeleteAsync(id);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "ProductDeleted",
+                "Product",
+                id,
+                new { code, name },
+                userId: null);
         }
         catch (DbUpdateConcurrencyException)
         {

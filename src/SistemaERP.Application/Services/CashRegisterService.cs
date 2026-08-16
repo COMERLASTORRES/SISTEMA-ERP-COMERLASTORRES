@@ -14,15 +14,18 @@ namespace SistemaERP.Application.Services
 
         private readonly ICashRegisterRepository _cashRegisterRepository;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IAuditService _auditService;
         private readonly ILogger<CashRegisterService> _logger;
 
         public CashRegisterService(
             ICashRegisterRepository cashRegisterRepository,
             IUnitOfWork unitOfWork,
+            IAuditService auditService,
             ILogger<CashRegisterService> logger)
         {
             _cashRegisterRepository = cashRegisterRepository;
             _unitOfWork = unitOfWork;
+            _auditService = auditService;
             _logger = logger;
         }
 
@@ -48,7 +51,17 @@ namespace SistemaERP.Application.Services
             _logger.LogInformation("Opening cash register {Number} for user {UserId}.",
                 register.CashRegisterNumber, userId);
 
-            return await _cashRegisterRepository.AddAsync(register);
+            var created = await _cashRegisterRepository.AddAsync(register);
+
+            await _auditService.LogAsync(
+                tenantId,
+                "CashRegisterOpened",
+                "CashRegister",
+                created.Id,
+                new { created.CashRegisterNumber, created.OpeningAmount, created.UserId },
+                userId: userId);
+
+            return created;
         }
 
         public async Task CloseAsync(Guid cashRegisterId, decimal closingAmount, string? notes = null)
@@ -79,6 +92,14 @@ namespace SistemaERP.Application.Services
                 register.CashRegisterNumber, register.ExpectedAmount, register.Difference);
 
             await _cashRegisterRepository.UpdateAsync(register);
+
+            await _auditService.LogAsync(
+                register.TenantId,
+                "CashRegisterClosed",
+                "CashRegister",
+                register.Id,
+                new { register.CashRegisterNumber, register.ExpectedAmount, register.ClosingAmount, register.Difference, register.UserId },
+                userId: register.UserId);
         }
 
         public async Task RegisterMovementAsync(
@@ -139,6 +160,14 @@ namespace SistemaERP.Application.Services
                 type, reason, amount, register.CashRegisterNumber);
 
             await _cashRegisterRepository.AddMovementAsync(movement);
+
+            await _auditService.LogAsync(
+                register.TenantId,
+                "CashMovementRegistered",
+                "CashMovement",
+                movement.Id,
+                new { movement.Type, movement.Reason, movement.Amount, movement.PaymentMethod, movement.SaleId, movement.PurchaseId, movement.Description },
+                userId: userId);
         }
 
         public async Task<CashRegister?> GetOpenCashRegisterForUserAsync(Guid tenantId, Guid userId)

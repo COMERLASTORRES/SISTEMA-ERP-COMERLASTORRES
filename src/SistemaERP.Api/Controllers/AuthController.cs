@@ -24,12 +24,14 @@ namespace SistemaERP.Api.Controllers
     {
         private readonly IUserService _userService;
         private readonly IUserRepository _userRepository;
+        private readonly IAuditService _auditService;
         private readonly IConfiguration _configuration;
 
-        public AuthController(IUserService userService, IUserRepository userRepository, IConfiguration configuration)
+        public AuthController(IUserService userService, IUserRepository userRepository, IAuditService auditService, IConfiguration configuration)
         {
             _userService = userService;
             _userRepository = userRepository;
+            _auditService = auditService;
             _configuration = configuration;
         }
 
@@ -101,11 +103,36 @@ namespace SistemaERP.Api.Controllers
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             var user = await _userService.ValidateCredentialsAsync(model.Email, model.Password);
-            if (user == null) return Unauthorized("Invalid email or password.");
+            if (user == null)
+            {
+                // Log failed login attempt
+                var clientIpLoginFailed = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _auditService.LogAsync(
+                    Guid.Empty, // No tenant context yet
+                    "LoginFailed",
+                    "User",
+                    null,
+                    new { email = model.Email },
+                    ipAddress: clientIpLoginFailed,
+                    userId: null);
+
+                return Unauthorized("Invalid email or password.");
+            }
 
             var (token, expiration) = await GenerateTokenAsync(user);
             var refreshTokenResult = await _userService.IssueRefreshTokenAsync(user.Id, GetRefreshTokenExpiryDays());
             var tenant = await _userService.GetTenantAsync(user.TenantId);
+
+            // Log successful login
+            var clientIpLoginSuccess = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _auditService.LogAsync(
+                user.TenantId,
+                "LoginSuccess",
+                "User",
+                user.Id,
+                new { user.Email, user.Role },
+                ipAddress: clientIpLoginSuccess,
+                userId: user.Id);
 
             return Ok(new LoginResponse
             {
@@ -129,13 +156,36 @@ namespace SistemaERP.Api.Controllers
             if (string.IsNullOrWhiteSpace(model.RefreshToken)) return BadRequest("Refresh token is required.");
 
             var refreshResult = await _userService.RotateRefreshTokenAsync(model.RefreshToken, GetRefreshTokenExpiryDays());
-            if (refreshResult == null) return Unauthorized("Invalid or expired refresh token.");
+            if (refreshResult == null)
+            {
+                var clientIpRefreshFailed = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _auditService.LogAsync(
+                    Guid.Empty,
+                    "RefreshTokenFailed",
+                    "User",
+                    null,
+                    new { reason = "Invalid or expired token" },
+                    ipAddress: clientIpRefreshFailed,
+                    userId: null);
+                return Unauthorized("Invalid or expired refresh token.");
+            }
 
             // Obtener el usuario desde el refresh token rotado
             var user = await _userRepository.GetByIdWithRolesAsync(refreshResult.UserId);
             if (user == null) return Unauthorized("User not found.");
 
             var (token, expiration) = await GenerateTokenAsync(user);
+
+            // Log successful token refresh
+            var clientIpRefreshSuccess = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _auditService.LogAsync(
+                user.TenantId,
+                "RefreshTokenRotated",
+                "User",
+                user.Id,
+                new { user.Email },
+                ipAddress: clientIpRefreshSuccess,
+                userId: user.Id);
 
             return Ok(new RefreshResponse
             {
@@ -155,7 +205,20 @@ namespace SistemaERP.Api.Controllers
                 return Ok(new { message = "Logout successful (no refresh token provided)." });
             }
 
+            // Try to get userId from the refresh token before revoking
+            var clientIpLogout = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
             await _userService.RevokeRefreshTokenAsync(model.RefreshToken);
+
+            // Log logout
+            await _auditService.LogAsync(
+                Guid.Empty, // We don't have tenant context from just the refresh token here
+                "Logout",
+                "User",
+                null,
+                new { },
+                ipAddress: clientIpLogout,
+                userId: null);
+
             return Ok(new { message = "Logout successful. Refresh token revoked." });
         }
 
@@ -168,6 +231,17 @@ namespace SistemaERP.Api.Controllers
             if (string.IsNullOrWhiteSpace(model.Email)) return BadRequest("Email es requerido.");
 
             var result = await _userService.RequestPasswordResetAsync(model.Email);
+
+            // Log forgot password request (same response for existing/non-existing emails - no enumeration)
+            var clientIpForgot = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _auditService.LogAsync(
+                Guid.Empty, // No tenant context for this public endpoint
+                "PasswordResetRequested",
+                "User",
+                null,
+                new { email = model.Email },
+                ipAddress: clientIpForgot,
+                userId: null);
 
             // Siempre respondemos 200 OK con el mismo formato (no revela si el email existe)
             // En DEV: incluye token y link para testing
@@ -202,12 +276,33 @@ namespace SistemaERP.Api.Controllers
 
             if (!result.Success)
             {
+                var clientIpResetFailed = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _auditService.LogAsync(
+                    Guid.Empty,
+                    "PasswordResetFailed",
+                    "User",
+                    null,
+                    new { reason = result.ErrorMessage },
+                    ipAddress: clientIpResetFailed,
+                    userId: null);
+
                 return BadRequest(new ResetPasswordResponse
                 {
                     Success = false,
                     Message = result.ErrorMessage
                 });
             }
+
+            // Log successful password reset
+            var clientIpResetSuccess = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _auditService.LogAsync(
+                Guid.Empty, // The service logs with proper tenantId internally
+                "PasswordResetCompleted",
+                "User",
+                null,
+                new { },
+                ipAddress: clientIpResetSuccess,
+                userId: null);
 
             return Ok(new ResetPasswordResponse
             {

@@ -32,6 +32,7 @@ public class SistemaERPDbContext : DbContext
     public DbSet<UserRole> UserRoles { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -139,6 +140,28 @@ public class SistemaERPDbContext : DbContext
             .WithMany(u => u.PasswordResetTokens)
             .HasForeignKey(prt => prt.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // AuditLog: tenant-scoped, immutable (no soft-delete, no updates).
+        // Index on TenantId + Timestamp for time-range queries.
+        // Index on UserId for user activity lookups.
+        // Index on Action for filtering by action type.
+        // Index on EntityType + EntityId for entity history.
+        modelBuilder.Entity<AuditLog>().HasQueryFilter(al => al.TenantId == _tenantProvider.GetTenantId());
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => new { al.TenantId, al.Timestamp });
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => al.UserId);
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => al.Action);
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => new { al.EntityType, al.EntityId });
+
+        // AuditLog -> User (Restrict: keep audit trail even if user is deleted).
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(al => al.User)
+            .WithMany()
+            .HasForeignKey(al => al.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Customer multi-tenant query filter (soft-delete via IsActive)
         modelBuilder.Entity<Customer>().HasQueryFilter(c => c.IsActive && c.TenantId == _tenantProvider.GetTenantId());
