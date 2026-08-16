@@ -142,6 +142,15 @@ builder.Services.AddRateLimiter(options =>
         o.QueueLimit = 0;
     });
 
+    // Política estricta para forgot-password: 3 req/hora por IP (ventana fija)
+    options.AddFixedWindowLimiter("ForgotPasswordPolicy", o =>
+    {
+        o.PermitLimit = 3;
+        o.Window = TimeSpan.FromHours(1);
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        o.QueueLimit = 0;
+    });
+
     // Respuesta 429 personalizada
     options.OnRejected = (context, _) =>
     {

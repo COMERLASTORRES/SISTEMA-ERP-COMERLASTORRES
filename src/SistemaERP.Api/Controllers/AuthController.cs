@@ -132,7 +132,7 @@ namespace SistemaERP.Api.Controllers
             if (refreshResult == null) return Unauthorized("Invalid or expired refresh token.");
 
             // Obtener el usuario desde el refresh token rotado
-            var user = await _userRepository.GetByIdAsync(refreshResult.UserId);
+            var user = await _userRepository.GetByIdWithRolesAsync(refreshResult.UserId);
             if (user == null) return Unauthorized("User not found.");
 
             var (token, expiration) = await GenerateTokenAsync(user);
@@ -157,6 +157,63 @@ namespace SistemaERP.Api.Controllers
 
             await _userService.RevokeRefreshTokenAsync(model.RefreshToken);
             return Ok(new { message = "Logout successful. Refresh token revoked." });
+        }
+
+        // POST: api/auth/forgot-password
+        [HttpPost("forgot-password")]
+        [EnableRateLimiting("ForgotPasswordPolicy")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest model)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(model.Email)) return BadRequest("Email es requerido.");
+
+            var result = await _userService.RequestPasswordResetAsync(model.Email);
+
+            // Siempre respondemos 200 OK con el mismo formato (no revela si el email existe)
+            // En DEV: incluye token y link para testing
+            // En PROD: solo Success=true y mensaje genérico
+            var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+
+            var response = new ForgotPasswordResponse
+            {
+                Success = true,
+                Message = "Si el email existe, recibirá instrucciones para restablecer su contraseña."
+            };
+
+            if (isDevelopment && result.ResetToken != null)
+            {
+                response.ResetToken = result.ResetToken;
+                response.ResetLink = result.ResetLink;
+                response.ExpiresAt = result.ExpiresAt;
+            }
+
+            return Ok(response);
+        }
+
+        // POST: api/auth/reset-password
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest model)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(model.Token)) return BadRequest("Token es requerido.");
+            if (string.IsNullOrWhiteSpace(model.NewPassword)) return BadRequest("Nueva contraseña es requerida.");
+
+            var result = await _userService.ResetPasswordAsync(model.Token, model.NewPassword);
+
+            if (!result.Success)
+            {
+                return BadRequest(new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = result.ErrorMessage
+                });
+            }
+
+            return Ok(new ResetPasswordResponse
+            {
+                Success = true,
+                Message = "Contraseña actualizada correctamente. Por favor, inicie sesión con su nueva contraseña."
+            });
         }
 
         // GET: api/auth/my-permissions

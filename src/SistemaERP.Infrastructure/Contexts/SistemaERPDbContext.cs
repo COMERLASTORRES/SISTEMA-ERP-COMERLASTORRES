@@ -31,6 +31,7 @@ public class SistemaERPDbContext : DbContext
     public DbSet<RolePermission> RolePermissions { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -118,6 +119,26 @@ public class SistemaERPDbContext : DbContext
             .WithOne()
             .HasForeignKey<RefreshToken>(rt => rt.ReplacedByTokenId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // PasswordResetToken: tenant-scoped through User, no soft-delete.
+        // TokenHash is unique (prevents duplicate tokens).
+        // Index on UserId for fast lookup.
+        // Index on ExpiresAt for cleanup of expired tokens.
+        modelBuilder.Entity<PasswordResetToken>().HasQueryFilter(prt => prt.User.TenantId == _tenantProvider.GetTenantId());
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasIndex(prt => prt.TokenHash)
+            .IsUnique();
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasIndex(prt => prt.UserId);
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasIndex(prt => prt.ExpiresAt);
+
+        // PasswordResetToken -> User (Cascade: deleting user removes their reset tokens).
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasOne(prt => prt.User)
+            .WithMany(u => u.PasswordResetTokens)
+            .HasForeignKey(prt => prt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Customer multi-tenant query filter (soft-delete via IsActive)
         modelBuilder.Entity<Customer>().HasQueryFilter(c => c.IsActive && c.TenantId == _tenantProvider.GetTenantId());

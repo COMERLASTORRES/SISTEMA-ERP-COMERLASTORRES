@@ -38,4 +38,8 @@ public interface IUserService
     Task<RefreshTokenResult> RotateRefreshTokenAsync(string refreshToken, int expiryDays);
     Task RevokeRefreshTokenAsync(string refreshToken);
     Task RevokeAllUserRefreshTokensAsync(Guid userId);
+
+    // Password reset operations
+    Task<PasswordResetResult> RequestPasswordResetAsync(string email);
+    Task<PasswordResetResult> ResetPasswordAsync(string token, string newPassword);
 }

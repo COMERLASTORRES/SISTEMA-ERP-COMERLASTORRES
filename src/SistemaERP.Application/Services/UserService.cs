@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Application.Services;
@@ -17,8 +18,10 @@ namespace SistemaERP.Application.Services
         private readonly IRoleRepository _roleRepository;
         private readonly IPermissionRepository _permissionRepository;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
         private readonly ILogger<UserService> _logger;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IConfiguration _configuration;
 
         public UserService(
             ITenantRepository tenantRepository,
@@ -26,16 +29,20 @@ namespace SistemaERP.Application.Services
             IRoleRepository roleRepository,
             IPermissionRepository permissionRepository,
             IRefreshTokenRepository refreshTokenRepository,
+            IPasswordResetTokenRepository passwordResetTokenRepository,
             ILogger<UserService> logger,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IConfiguration configuration)
         {
             _tenantRepository = tenantRepository;
             _userRepository = userRepository;
             _roleRepository = roleRepository;
             _permissionRepository = permissionRepository;
             _refreshTokenRepository = refreshTokenRepository;
+            _passwordResetTokenRepository = passwordResetTokenRepository;
             _logger = logger;
             _unitOfWork = unitOfWork;
+            _configuration = configuration;
         }
 
         public async Task<User> RegisterAsync(string tenantName, string email, string password, string fullName)
@@ -428,6 +435,110 @@ namespace SistemaERP.Application.Services
             using var sha = SHA256.Create();
             var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(token));
             return Convert.ToBase64String(hash);
+        }
+
+        // ==================== Password Reset Operations ====================
+
+        /// <summary>
+        /// Solicita un reseteo de contraseña para el email dado.
+        /// Siempre devuelve éxito (no revela si el email existe).
+        /// En DEV: devuelve el token plano y el link de reseteo.
+        /// En PROD: enviaría email y devuelve solo Success=true.
+        /// </summary>
+        public async Task<PasswordResetResult> RequestPasswordResetAsync(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return PasswordResetResult.Fail("Email es requerido.");
+
+            var user = await _userRepository.GetByEmailAsync(email);
+
+            // Siempre respondemos OK aunque el usuario no exista (evita email enumeration)
+            if (user == null)
+            {
+                _logger.LogInformation("Password reset requested for non-existent email {Email}.", email);
+                return PasswordResetResult.Ok();
+            }
+
+            // Generar token opaco
+            var plainToken = GenerateOpaqueToken();
+            var tokenHash = HashToken(plainToken);
+            var expiresAt = DateTime.UtcNow.AddMinutes(30); // 30 min expiración
+
+            var resetToken = new PasswordResetToken
+            {
+                UserId = user.Id,
+                TokenHash = tokenHash,
+                ExpiresAt = expiresAt,
+            };
+
+            await _passwordResetTokenRepository.AddAsync(resetToken);
+            await _unitOfWork.SaveChangesAsync();
+
+            _logger.LogInformation("Password reset token {TokenId} issued for user {UserId}.", resetToken.Id, user.Id);
+
+            // En DEV, devolver token y link; en PROD solo Success=true
+            var isDevelopment = _configuration?["ASPNETCORE_ENVIRONMENT"] == "Development";
+            if (isDevelopment)
+            {
+                var frontendUrl = _configuration["Frontend:Url"] ?? "http://localhost:5173";
+                var resetLink = $"{frontendUrl}/reset-password?token={plainToken}";
+                return PasswordResetResult.Ok(plainToken, resetLink, expiresAt);
+            }
+
+            return PasswordResetResult.Ok();
+        }
+
+        /// <summary>
+        /// Resetea la contraseña usando un token válido.
+        /// Valida: token existe, no expirado, no usado.
+        /// Actualiza PasswordHash del usuario, marca token como usado, revoca todos sus refresh tokens.
+        /// </summary>
+        public async Task<PasswordResetResult> ResetPasswordAsync(string token, string newPassword)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return PasswordResetResult.Fail("Token es requerido.");
+
+            if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+                return PasswordResetResult.Fail("La contraseña debe tener al menos 8 caracteres.");
+
+            var tokenHash = HashToken(token);
+            var resetToken = await _passwordResetTokenRepository.GetByTokenHashAsync(tokenHash);
+
+            if (resetToken == null)
+            {
+                _logger.LogWarning("Password reset attempted with non-existent token.");
+                return PasswordResetResult.Fail("Token inválido o expirado.");
+            }
+
+            if (!resetToken.IsValid)
+            {
+                _logger.LogWarning("Password reset attempted with invalid/expired token {TokenId}.", resetToken.Id);
+                return PasswordResetResult.Fail("Token inválido o expirado.");
+            }
+
+            // Marcar token como usado
+            resetToken.UsedAt = DateTime.UtcNow;
+            await _passwordResetTokenRepository.UpdateAsync(resetToken);
+
+            // Actualizar contraseña del usuario
+            var user = await _userRepository.GetByIdAsync(resetToken.UserId);
+            if (user == null)
+            {
+                _logger.LogError("User {UserId} not found for valid reset token {TokenId}.", resetToken.UserId, resetToken.Id);
+                return PasswordResetResult.Fail("Usuario no encontrado.");
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            await _userRepository.UpdateAsync(user);
+
+            // Revocar TODOS los refresh tokens del usuario (logout everywhere)
+            await RevokeAllUserRefreshTokensAsync(user.Id);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            _logger.LogInformation("Password reset completed for user {UserId}. All refresh tokens revoked.", user.Id);
+
+            return PasswordResetResult.Ok();
         }
     }
 }

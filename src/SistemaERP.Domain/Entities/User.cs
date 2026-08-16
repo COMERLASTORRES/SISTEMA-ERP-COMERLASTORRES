@@ -26,4 +26,9 @@ public class User : AuditableEntity
     /// Refresh tokens emitidos para este usuario.
     /// </summary>
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    /// <summary>
+    /// Tokens de reseteo de contraseña emitidos para este usuario.
+    /// </summary>
+    public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new List<PasswordResetToken>();
 }
