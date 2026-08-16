@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
-using SistemaERP.Api.Models;
 using System;
 using System.Linq;
 using System.Security.Claims;
@@ -16,9 +16,11 @@ namespace SistemaERP.Api.Controllers
     public class PurchasesController : ControllerBase
     {
         private readonly IPurchaseService _purchaseService;
-        public PurchasesController(IPurchaseService purchaseService)
+        private readonly IPurchaseDocumentService _purchaseDocumentService;
+        public PurchasesController(IPurchaseService purchaseService, IPurchaseDocumentService purchaseDocumentService)
         {
             _purchaseService = purchaseService;
+            _purchaseDocumentService = purchaseDocumentService;
         }
 
         // GET: api/Purchases?status=0&supplierId=...&paymentType=1&page=1&pageSize=10
@@ -73,20 +75,20 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.PurchasesCreate)]
         public async Task<IActionResult> Post([FromBody] CreatePurchaseDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            if (dto.Items.Any(i => !i.ProductId.HasValue || i.ProductId == Guid.Empty))
-                return BadRequest("Todos los items deben tener un producto válido.");
-
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
 
-            var purchase = MapToEntity(dto, tenantId);
-            purchase.CreatedBy = GetUserId();
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
+
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            if (dto.Items.Any(i => i.ProductId == Guid.Empty))
+                return BadRequest("Todos los items deben tener un producto válido.");
 
             try
             {
-                var created = await _purchaseService.CreateDraftAsync(purchase);
+                var created = await _purchaseService.CreateDraftAsync(dto, tenantId, userId);
                 return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
             }
             catch (InvalidOperationException ex)
@@ -100,21 +102,24 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.PurchasesEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdatePurchaseDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (id != dto.Id) return BadRequest("ID mismatch");
-
-            if (dto.Items.Any(i => !i.ProductId.HasValue || i.ProductId == Guid.Empty))
-                return BadRequest("Todos los items deben tener un producto válido.");
-
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
 
-            var purchase = MapToEntity(dto, tenantId);
-            purchase.Id = id;
+            var existing = await _purchaseService.GetByIdAsync(id);
+            if (existing == null) return NotFound("La compra no existe.");
+
+            if (existing.TenantId != tenantId) return Forbid();
+
+            if (id != dto.Id) return BadRequest("ID mismatch");
+
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            if (dto.Items.Any(i => i.ProductId == Guid.Empty))
+                return BadRequest("Todos los items deben tener un producto válido.");
 
             try
             {
-                await _purchaseService.UpdateDraftAsync(purchase);
+                await _purchaseService.UpdateDraftAsync(dto, tenantId);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -169,9 +174,11 @@ namespace SistemaERP.Api.Controllers
             var userId = GetUserId();
             if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
 
+            var paymentMethod = (PaymentMethod)dto.PaymentMethod;
+
             try
             {
-                await _purchaseService.RegisterFullPaymentAsync(id, userId, dto.PaymentMethod);
+                await _purchaseService.RegisterFullPaymentAsync(id, userId, paymentMethod);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -185,9 +192,17 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.PurchasesDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
+
+            var existing = await _purchaseService.GetByIdAsync(id);
+            if (existing == null) return NotFound("La compra no existe.");
+
+            if (existing.TenantId != tenantId) return Forbid();
+
             try
             {
-                await _purchaseService.DeleteAsync(id);
+                await _purchaseService.DeleteAsync(id, tenantId);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -196,30 +211,20 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
-        private Purchase MapToEntity(CreatePurchaseDto dto, Guid tenantId)
+        // GET: api/Purchases/{id}/document/pdf
+        [HttpGet("{id}/document/pdf")]
+        [Authorize(Policy = PermissionCodes.PurchasesView)]
+        public async Task<IActionResult> GetPurchaseDocumentPdf(Guid id)
         {
-            return new Purchase
+            try
             {
-                TenantId = tenantId,
-                SupplierId = dto.SupplierId,
-                WarehouseId = dto.WarehouseId,
-                VoucherType = (VoucherType)dto.VoucherType,
-                VoucherNumber = dto.VoucherNumber,
-                PurchaseDate = dto.PurchaseDate,
-                Currency = (Currency)dto.Currency,
-                ExchangeRate = dto.ExchangeRate,
-                PaymentType = (PaymentType)dto.PaymentType,
-                PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod)dto.PaymentMethod.Value : null,
-                CreditDays = dto.CreditDays,
-                Observations = dto.Observations,
-                Items = dto.Items.Select(i => new PurchaseItem
-                {
-                    ProductId = i.ProductId ?? Guid.Empty,
-                    Quantity = i.Quantity,
-                    UnitCost = i.UnitCost,
-                    DiscountPercentage = i.DiscountPercentage,
-                }).ToList(),
-            };
+                var pdfBytes = await _purchaseDocumentService.GeneratePurchaseDocumentPdfAsync(id);
+                return File(pdfBytes, "application/pdf", $"comprobante-compra-{id}.pdf");
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(ex.Message);
+            }
         }
 
         private Guid GetTenantId()

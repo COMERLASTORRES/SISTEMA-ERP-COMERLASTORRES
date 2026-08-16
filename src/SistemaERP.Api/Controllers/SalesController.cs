@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
-using SistemaERP.Api.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,9 +17,11 @@ namespace SistemaERP.Api.Controllers
     public class SalesController : ControllerBase
     {
         private readonly ISaleService _saleService;
-        public SalesController(ISaleService saleService)
+        private readonly ISaleDocumentService _saleDocumentService;
+        public SalesController(ISaleService saleService, ISaleDocumentService saleDocumentService)
         {
             _saleService = saleService;
+            _saleDocumentService = saleDocumentService;
         }
 
         // GET: api/Sales?status=0&customerId=...&page=1&pageSize=10
@@ -71,20 +73,20 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.SalesCreate)]
         public async Task<IActionResult> Post([FromBody] CreateSaleDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            if (dto.Items.Any(i => !i.ProductId.HasValue || i.ProductId == Guid.Empty))
-                return BadRequest("Todos los items deben tener un producto válido.");
-
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
 
-            var sale = MapToEntity(dto, tenantId);
-            sale.CreatedBy = GetUserId();
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
+
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            if (dto.Items.Any(i => i.ProductId == Guid.Empty))
+                return BadRequest("Todos los items deben tener un producto válido.");
 
             try
             {
-                var created = await _saleService.CreateDraftAsync(sale);
+                var created = await _saleService.CreateDraftAsync(dto, tenantId, userId);
                 return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
             }
             catch (InvalidOperationException ex)
@@ -98,21 +100,24 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.SalesEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdateSaleDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (id != dto.Id) return BadRequest("ID mismatch");
-
-            if (dto.Items.Any(i => !i.ProductId.HasValue || i.ProductId == Guid.Empty))
-                return BadRequest("Todos los items deben tener un producto válido.");
-
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
 
-            var sale = MapToEntity(dto, tenantId);
-            sale.Id = id;
+            var existing = await _saleService.GetByIdAsync(id);
+            if (existing == null) return NotFound("La venta no existe.");
+
+            if (existing.TenantId != tenantId) return Forbid();
+
+            if (id != dto.Id) return BadRequest("ID mismatch");
+
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            if (dto.Items.Any(i => i.ProductId == Guid.Empty))
+                return BadRequest("Todos los items deben tener un producto válido.");
 
             try
             {
-                await _saleService.UpdateDraftAsync(sale);
+                await _saleService.UpdateDraftAsync(dto, tenantId);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -127,21 +132,15 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.SalesEdit)]
         public async Task<IActionResult> ValidateStock([FromBody] ValidateStockDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            if (dto.Items.Any(i => !i.ProductId.HasValue || i.ProductId == Guid.Empty))
-                return BadRequest("Todos los items deben tener un producto válido.");
-
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
 
-            var items = dto.Items.Select(i => new SaleItem
-            {
-                ProductId = i.ProductId ?? Guid.Empty,
-                Quantity = i.Quantity,
-            }).ToList();
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var result = await _saleService.ValidateStockAsync(tenantId, items);
+            if (dto.Items.Any(i => i.ProductId == Guid.Empty))
+                return BadRequest("Todos los items deben tener un producto válido.");
+
+            var result = await _saleService.ValidateStockAsync(tenantId, dto.Items);
 
             return Ok(new StockValidationResponseDto
             {
@@ -202,9 +201,11 @@ namespace SistemaERP.Api.Controllers
             var userId = GetUserId();
             if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
 
+            var paymentMethod = (PaymentMethod)dto.PaymentMethod;
+
             try
             {
-                await _saleService.RegisterFullPaymentAsync(id, userId, dto.PaymentMethod);
+                await _saleService.RegisterFullPaymentAsync(id, userId, paymentMethod);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -218,9 +219,17 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.SalesDelete)]
         public async Task<IActionResult> Delete(Guid id)
         {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
+
+            var existing = await _saleService.GetByIdAsync(id);
+            if (existing == null) return NotFound("La venta no existe.");
+
+            if (existing.TenantId != tenantId) return Forbid();
+
             try
             {
-                await _saleService.DeleteAsync(id);
+                await _saleService.DeleteAsync(id, tenantId);
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -229,31 +238,20 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
-        private Sale MapToEntity(CreateSaleDto dto, Guid tenantId)
+        // GET: api/Sales/{id}/document/pdf
+        [HttpGet("{id}/document/pdf")]
+        [Authorize(Policy = PermissionCodes.SalesView)]
+        public async Task<IActionResult> GetSaleDocumentPdf(Guid id)
         {
-            return new Sale
+            try
             {
-                TenantId = tenantId,
-                CustomerId = dto.CustomerId,
-                WarehouseId = dto.WarehouseId,
-                VoucherType = (VoucherType)dto.VoucherType,
-                VoucherNumber = dto.VoucherNumber,
-                SaleDate = dto.SaleDate,
-                Currency = (Currency)dto.Currency,
-                ExchangeRate = dto.ExchangeRate,
-                PaymentType = (PaymentType)dto.PaymentType,
-                PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod?)dto.PaymentMethod.Value : null,
-                CreditDays = dto.CreditDays,
-                Observations = dto.Observations,
-                Items = dto.Items.Select(i => new SaleItem
-                {
-                    ProductId = i.ProductId ?? Guid.Empty,
-                    Quantity = i.Quantity,
-                    UnitPrice = i.UnitPrice,
-                    DiscountPercentage = i.DiscountPercentage,
-                    TaxPercentage = i.TaxPercentage,
-                }).ToList(),
-            };
+                var pdfBytes = await _saleDocumentService.GenerateSaleDocumentPdfAsync(id);
+                return File(pdfBytes, "application/pdf", $"comprobante-venta-{id}.pdf");
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(ex.Message);
+            }
         }
 
         private Guid GetTenantId()
@@ -271,16 +269,5 @@ namespace SistemaERP.Api.Controllers
                 return id;
             return Guid.Empty;
         }
-    }
-
-    public class ValidateStockItemDto
-    {
-        public Guid? ProductId { get; set; }
-        public int Quantity { get; set; }
-    }
-
-    public class ValidateStockDto
-    {
-        public List<ValidateStockItemDto> Items { get; set; } = new();
     }
 }

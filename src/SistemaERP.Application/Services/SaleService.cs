@@ -3,21 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
-using SistemaERP.Domain.Entities;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain.Entities;
 
 namespace SistemaERP.Application.Services
 {
     public class SaleService : ISaleService
     {
         private const decimal TAX_RATE = 0.18m; // IGV 18%
-        private const string NUMBER_PREFIX = "VEN-";
 
         private readonly ISaleRepository _saleRepository;
         private readonly IStockMovementService _stockMovementService;
         private readonly IProductRepository _productRepository;
+        private readonly ICustomerRepository _customerRepository;
         private readonly ITenantRepository _tenantRepository;
+        private readonly ITenantService _tenantService;
         private readonly ICashRegisterService _cashRegisterService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<SaleService> _logger;
@@ -26,7 +28,9 @@ namespace SistemaERP.Application.Services
             ISaleRepository saleRepository,
             IStockMovementService stockMovementService,
             IProductRepository productRepository,
+            ICustomerRepository customerRepository,
             ITenantRepository tenantRepository,
+            ITenantService tenantService,
             ICashRegisterService cashRegisterService,
             IUnitOfWork unitOfWork,
             ILogger<SaleService> logger)
@@ -34,7 +38,9 @@ namespace SistemaERP.Application.Services
             _saleRepository = saleRepository;
             _stockMovementService = stockMovementService;
             _productRepository = productRepository;
+            _customerRepository = customerRepository;
             _tenantRepository = tenantRepository;
+            _tenantService = tenantService;
             _cashRegisterService = cashRegisterService;
             _unitOfWork = unitOfWork;
             _logger = logger;
@@ -50,8 +56,18 @@ namespace SistemaERP.Application.Services
             return await _saleRepository.GetByIdAsync(id);
         }
 
-        public async Task<Sale> CreateDraftAsync(Sale sale)
+        public async Task<Sale> CreateDraftAsync(CreateSaleDto dto, Guid tenantId, Guid userId)
         {
+            // Validate CustomerId belongs to this tenant
+            var customer = await _customerRepository.GetByIdAsync(dto.CustomerId);
+            if (customer == null || customer.TenantId != tenantId)
+            {
+                throw new InvalidOperationException("Customer not found or does not belong to this tenant.");
+            }
+
+            var sale = MapToEntity(dto, tenantId);
+            sale.CreatedBy = userId;
+
             ValidateItems(sale);
             ValidatePaymentTerms(sale);
 
@@ -69,9 +85,9 @@ namespace SistemaERP.Application.Services
             return await _saleRepository.AddAsync(sale);
         }
 
-        public async Task<Sale> UpdateDraftAsync(Sale sale)
+        public async Task<Sale> UpdateDraftAsync(UpdateSaleDto dto, Guid tenantId)
         {
-            var existing = await _saleRepository.GetByIdAsync(sale.Id);
+            var existing = await _saleRepository.GetByIdAsync(dto.Id);
             if (existing == null)
                 throw new InvalidOperationException("La venta no existe.");
 
@@ -79,25 +95,32 @@ namespace SistemaERP.Application.Services
                 throw new InvalidOperationException(
                     "Solo se puede editar una venta en estado Borrador (Draft).");
 
-            ValidateItems(sale);
-            ValidatePaymentTerms(sale);
+            // Validate CustomerId belongs to this tenant
+            var customer = await _customerRepository.GetByIdAsync(dto.CustomerId);
+            if (customer == null || customer.TenantId != tenantId)
+            {
+                throw new InvalidOperationException("Customer not found or does not belong to this tenant.");
+            }
+
+            ValidateItemsFromDto(dto);
+            ValidatePaymentTermsFromDto(dto);
 
             // Mantener el número y la fecha de creación originales.
-            existing.CustomerId = sale.CustomerId;
-            existing.WarehouseId = sale.WarehouseId;
-            existing.VoucherType = sale.VoucherType;
-            existing.VoucherNumber = sale.VoucherNumber;
-            existing.SaleDate = sale.SaleDate;
-            existing.Currency = sale.Currency;
-            existing.ExchangeRate = sale.ExchangeRate;
-            existing.PaymentType = sale.PaymentType;
-            existing.PaymentMethod = sale.PaymentMethod;
-            existing.CreditDays = sale.CreditDays;
-            existing.Observations = sale.Observations;
+            existing.CustomerId = dto.CustomerId;
+            existing.WarehouseId = dto.WarehouseId;
+            existing.VoucherType = (VoucherType)dto.VoucherType;
+            existing.VoucherNumber = dto.VoucherNumber;
+            existing.SaleDate = dto.SaleDate;
+            existing.Currency = (Currency)dto.Currency;
+            existing.ExchangeRate = dto.ExchangeRate;
+            existing.PaymentType = (PaymentType)dto.PaymentType;
+            existing.PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod?)dto.PaymentMethod.Value : null;
+            existing.CreditDays = dto.CreditDays;
+            existing.Observations = dto.Observations;
 
             // Reemplazar los items: se eliminan los previos y se agregan los nuevos.
             existing.Items.Clear();
-            foreach (var item in sale.Items)
+            foreach (var item in dto.Items)
             {
                 existing.Items.Add(new SaleItem
                 {
@@ -106,9 +129,9 @@ namespace SistemaERP.Application.Services
                     UnitPrice = item.UnitPrice,
                     DiscountPercentage = item.DiscountPercentage,
                     TaxPercentage = item.TaxPercentage,
-                    LineSubtotal = item.LineSubtotal,
-                    LineTax = item.LineTax,
-                    LineTotal = item.LineTotal,
+                    LineSubtotal = 0,
+                    LineTax = 0,
+                    LineTotal = 0,
                 });
             }
 
@@ -122,7 +145,7 @@ namespace SistemaERP.Application.Services
             return await _saleRepository.UpdateAsync(existing);
         }
 
-        public async Task<StockValidationResult> ValidateStockAsync(Guid tenantId, IEnumerable<SaleItem> items)
+        public async Task<StockValidationResult> ValidateStockAsync(Guid tenantId, IEnumerable<ValidateStockItemDto> items)
         {
             var result = new StockValidationResult();
 
@@ -167,7 +190,12 @@ namespace SistemaERP.Application.Services
                     "Solo se puede confirmar una venta en estado Borrador (Draft).");
 
             // Validación previa de stock: si hay errores, no iniciamos la transacción.
-            var stockResult = await ValidateStockAsync(sale.TenantId, sale.Items);
+            var validateItems = sale.Items.Select(i => new ValidateStockItemDto
+            {
+                ProductId = i.ProductId,
+                Quantity = i.Quantity,
+            }).ToList();
+            var stockResult = await ValidateStockAsync(sale.TenantId, validateItems);
             if (!stockResult.IsValid)
             {
                 var detail = string.Join("; ",
@@ -379,11 +407,14 @@ namespace SistemaERP.Application.Services
             }
         }
 
-        public async Task DeleteAsync(Guid saleId)
+        public async Task DeleteAsync(Guid saleId, Guid tenantId)
         {
             var sale = await _saleRepository.GetByIdAsync(saleId);
             if (sale == null)
                 throw new InvalidOperationException("La venta no existe.");
+
+            if (sale.TenantId != tenantId)
+                throw new InvalidOperationException("La venta no pertenece a este tenant.");
 
             if (sale.Status != SaleStatus.Draft)
                 throw new InvalidOperationException(
@@ -396,15 +427,7 @@ namespace SistemaERP.Application.Services
 
         private async Task<string> GenerateNextSaleNumberAsync(Guid tenantId)
         {
-            var last = await _saleRepository.GetLastSaleNumberAsync(tenantId);
-            int next = 1;
-            if (!string.IsNullOrEmpty(last) && last.StartsWith(NUMBER_PREFIX))
-            {
-                var numericPart = last.Substring(NUMBER_PREFIX.Length);
-                if (int.TryParse(numericPart, out var lastNumber))
-                    next = lastNumber + 1;
-            }
-            return $"{NUMBER_PREFIX}{next:D6}";
+            return await _tenantService.GenerateNextSaleNumberAsync(tenantId);
         }
 
         private static void RecalculateTotals(Sale sale)
@@ -461,6 +484,60 @@ namespace SistemaERP.Application.Services
             if (sale.PaymentType == PaymentType.Credit &&
                 (!sale.CreditDays.HasValue || sale.CreditDays.Value <= 0))
                 throw new InvalidOperationException("Debe indicar los días de crédito para ventas a crédito.");
+        }
+
+        private static void ValidateItemsFromDto(CreateSaleDto dto)
+        {
+            if (dto.Items == null || !dto.Items.Any())
+                throw new InvalidOperationException("La venta debe tener al menos un item.");
+
+            foreach (var item in dto.Items)
+            {
+                if (item.Quantity <= 0)
+                    throw new InvalidOperationException("La cantidad debe ser mayor a cero en todos los items.");
+                if (item.UnitPrice <= 0)
+                    throw new InvalidOperationException("El precio unitario debe ser mayor a cero en todos los items.");
+            }
+        }
+
+        private static void ValidatePaymentTermsFromDto(CreateSaleDto dto)
+        {
+            if (dto.PaymentType == 0 && !dto.PaymentMethod.HasValue) // Cash = 0
+                throw new InvalidOperationException("Debe indicar el método de pago para ventas al contado.");
+
+            if (dto.PaymentType == 1 && // Credit = 1
+                (!dto.CreditDays.HasValue || dto.CreditDays.Value <= 0))
+                throw new InvalidOperationException("Debe indicar los días de crédito para ventas a crédito.");
+        }
+
+        private Sale MapToEntity(CreateSaleDto dto, Guid tenantId)
+        {
+            return new Sale
+            {
+                TenantId = tenantId,
+                CustomerId = dto.CustomerId,
+                WarehouseId = dto.WarehouseId,
+                VoucherType = (VoucherType)dto.VoucherType,
+                VoucherNumber = dto.VoucherNumber,
+                SaleDate = dto.SaleDate,
+                Currency = (Currency)dto.Currency,
+                ExchangeRate = dto.ExchangeRate,
+                PaymentType = (PaymentType)dto.PaymentType,
+                PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod?)dto.PaymentMethod.Value : null,
+                CreditDays = dto.CreditDays,
+                Observations = dto.Observations,
+                Items = dto.Items.Select(i => new SaleItem
+                {
+                    ProductId = i.ProductId,
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice,
+                    DiscountPercentage = i.DiscountPercentage,
+                    TaxPercentage = i.TaxPercentage,
+                    LineSubtotal = 0,
+                    LineTax = 0,
+                    LineTotal = 0,
+                }).ToList(),
+            };
         }
     }
 }

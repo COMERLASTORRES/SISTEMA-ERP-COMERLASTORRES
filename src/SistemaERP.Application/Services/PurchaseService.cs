@@ -2,19 +2,21 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
-using SistemaERP.Domain.Entities;
 using SistemaERP.Application.Services;
+using SistemaERP.Domain.Entities;
 
 namespace SistemaERP.Application.Services
 {
     public class PurchaseService : IPurchaseService
     {
         private const decimal TAX_RATE = 0.18m; // IGV 18%
-        private const string NUMBER_PREFIX = "PUR-";
 
         private readonly IPurchaseRepository _purchaseRepository;
         private readonly IStockMovementService _stockMovementService;
+        private readonly ISupplierRepository _supplierRepository;
+        private readonly ITenantService _tenantService;
         private readonly ICashRegisterService _cashRegisterService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<PurchaseService> _logger;
@@ -22,12 +24,16 @@ namespace SistemaERP.Application.Services
         public PurchaseService(
             IPurchaseRepository purchaseRepository,
             IStockMovementService stockMovementService,
+            ISupplierRepository supplierRepository,
+            ITenantService tenantService,
             ICashRegisterService cashRegisterService,
             IUnitOfWork unitOfWork,
             ILogger<PurchaseService> logger)
         {
             _purchaseRepository = purchaseRepository;
             _stockMovementService = stockMovementService;
+            _supplierRepository = supplierRepository;
+            _tenantService = tenantService;
             _cashRegisterService = cashRegisterService;
             _unitOfWork = unitOfWork;
             _logger = logger;
@@ -43,10 +49,20 @@ namespace SistemaERP.Application.Services
             return await _purchaseRepository.GetByIdAsync(id);
         }
 
-        public async Task<Purchase> CreateDraftAsync(Purchase purchase)
+        public async Task<Purchase> CreateDraftAsync(CreatePurchaseDto dto, Guid tenantId, Guid userId)
         {
-            ValidateItems(purchase);
-            ValidatePaymentTerms(purchase);
+            // Validate SupplierId belongs to this tenant
+            var supplier = await _supplierRepository.GetByIdAsync(dto.SupplierId);
+            if (supplier == null || supplier.TenantId != tenantId)
+            {
+                throw new InvalidOperationException("Supplier not found or does not belong to this tenant.");
+            }
+
+            var purchase = MapToEntity(dto, tenantId);
+            purchase.CreatedBy = userId;
+
+            ValidateItemsFromDto(dto);
+            ValidatePaymentTermsFromDto(dto);
 
             purchase.PurchaseNumber = await GenerateNextPurchaseNumberAsync(purchase.TenantId);
             RecalculateTotals(purchase);
@@ -62,9 +78,9 @@ namespace SistemaERP.Application.Services
             return await _purchaseRepository.AddAsync(purchase);
         }
 
-        public async Task<Purchase> UpdateDraftAsync(Purchase purchase)
+        public async Task<Purchase> UpdateDraftAsync(UpdatePurchaseDto dto, Guid tenantId)
         {
-            var existing = await _purchaseRepository.GetByIdAsync(purchase.Id);
+            var existing = await _purchaseRepository.GetByIdAsync(dto.Id);
             if (existing == null)
                 throw new InvalidOperationException("La compra no existe.");
 
@@ -72,25 +88,32 @@ namespace SistemaERP.Application.Services
                 throw new InvalidOperationException(
                     "Solo se puede editar una compra en estado Borrador (Draft).");
 
-            ValidateItems(purchase);
-            ValidatePaymentTerms(purchase);
+            // Validate SupplierId belongs to this tenant
+            var supplier = await _supplierRepository.GetByIdAsync(dto.SupplierId);
+            if (supplier == null || supplier.TenantId != tenantId)
+            {
+                throw new InvalidOperationException("Supplier not found or does not belong to this tenant.");
+            }
+
+            ValidateItemsFromDto(dto);
+            ValidatePaymentTermsFromDto(dto);
 
             // Mantener el número y la fecha de creación originales.
-            existing.SupplierId = purchase.SupplierId;
-            existing.WarehouseId = purchase.WarehouseId;
-            existing.VoucherType = purchase.VoucherType;
-            existing.VoucherNumber = purchase.VoucherNumber;
-            existing.PurchaseDate = purchase.PurchaseDate;
-            existing.Currency = purchase.Currency;
-            existing.ExchangeRate = purchase.ExchangeRate;
-            existing.PaymentType = purchase.PaymentType;
-            existing.PaymentMethod = purchase.PaymentMethod;
-            existing.CreditDays = purchase.CreditDays;
-            existing.Observations = purchase.Observations;
+            existing.SupplierId = dto.SupplierId;
+            existing.WarehouseId = dto.WarehouseId;
+            existing.VoucherType = (VoucherType)dto.VoucherType;
+            existing.VoucherNumber = dto.VoucherNumber;
+            existing.PurchaseDate = dto.PurchaseDate;
+            existing.Currency = (Currency)dto.Currency;
+            existing.ExchangeRate = dto.ExchangeRate;
+            existing.PaymentType = (PaymentType)dto.PaymentType;
+            existing.PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod)dto.PaymentMethod.Value : null;
+            existing.CreditDays = dto.CreditDays;
+            existing.Observations = dto.Observations;
 
             // Reemplazar los items: se eliminan los previos y se agregan los nuevos.
             existing.Items.Clear();
-            foreach (var item in purchase.Items)
+            foreach (var item in dto.Items)
             {
                 existing.Items.Add(new PurchaseItem
                 {
@@ -98,7 +121,7 @@ namespace SistemaERP.Application.Services
                     Quantity = item.Quantity,
                     UnitCost = item.UnitCost,
                     DiscountPercentage = item.DiscountPercentage,
-                    LineSubtotal = CalculateLineSubtotal(item),
+                    LineSubtotal = 0,
                 });
             }
 
@@ -265,11 +288,14 @@ namespace SistemaERP.Application.Services
             }
         }
 
-        public async Task DeleteAsync(Guid purchaseId)
+        public async Task DeleteAsync(Guid purchaseId, Guid tenantId)
         {
             var purchase = await _purchaseRepository.GetByIdAsync(purchaseId);
             if (purchase == null)
                 throw new InvalidOperationException("La compra no existe.");
+
+            if (purchase.TenantId != tenantId)
+                throw new InvalidOperationException("La compra no pertenece a este tenant.");
 
             if (purchase.Status != PurchaseStatus.Draft)
                 throw new InvalidOperationException(
@@ -349,15 +375,7 @@ namespace SistemaERP.Application.Services
 
         private async Task<string> GenerateNextPurchaseNumberAsync(Guid tenantId)
         {
-            var last = await _purchaseRepository.GetLastPurchaseNumberAsync(tenantId);
-            int next = 1;
-            if (!string.IsNullOrEmpty(last) && last.StartsWith(NUMBER_PREFIX))
-            {
-                var numericPart = last.Substring(NUMBER_PREFIX.Length);
-                if (int.TryParse(numericPart, out var lastNumber))
-                    next = lastNumber + 1;
-            }
-            return $"{NUMBER_PREFIX}{next:D6}";
+            return await _tenantService.GenerateNextPurchaseNumberAsync(tenantId);
         }
 
         private static void RecalculateTotals(Purchase purchase)
@@ -412,6 +430,57 @@ namespace SistemaERP.Application.Services
             {
                 purchase.DueDate = null;
             }
+        }
+
+        private static void ValidateItemsFromDto(CreatePurchaseDto dto)
+        {
+            if (dto.Items == null || !dto.Items.Any())
+                throw new InvalidOperationException("La compra debe tener al menos un item.");
+
+            foreach (var item in dto.Items)
+            {
+                if (item.Quantity <= 0)
+                    throw new InvalidOperationException("La cantidad debe ser mayor a cero en todos los items.");
+                if (item.UnitCost <= 0)
+                    throw new InvalidOperationException("El costo unitario debe ser mayor a cero en todos los items.");
+            }
+        }
+
+        private static void ValidatePaymentTermsFromDto(CreatePurchaseDto dto)
+        {
+            if (dto.PaymentType == 0 && !dto.PaymentMethod.HasValue) // Cash = 0
+                throw new InvalidOperationException("Debe indicar el método de pago para compras al contado.");
+
+            if (dto.PaymentType == 1 && // Credit = 1
+                (!dto.CreditDays.HasValue || dto.CreditDays.Value <= 0))
+                throw new InvalidOperationException("Debe indicar los días de crédito para compras a crédito.");
+        }
+
+        private Purchase MapToEntity(CreatePurchaseDto dto, Guid tenantId)
+        {
+            return new Purchase
+            {
+                TenantId = tenantId,
+                SupplierId = dto.SupplierId,
+                WarehouseId = dto.WarehouseId,
+                VoucherType = (VoucherType)dto.VoucherType,
+                VoucherNumber = dto.VoucherNumber,
+                PurchaseDate = dto.PurchaseDate,
+                Currency = (Currency)dto.Currency,
+                ExchangeRate = dto.ExchangeRate,
+                PaymentType = (PaymentType)dto.PaymentType,
+                PaymentMethod = dto.PaymentMethod.HasValue ? (PaymentMethod?)dto.PaymentMethod.Value : null,
+                CreditDays = dto.CreditDays,
+                Observations = dto.Observations,
+                Items = dto.Items.Select(i => new PurchaseItem
+                {
+                    ProductId = i.ProductId,
+                    Quantity = i.Quantity,
+                    UnitCost = i.UnitCost,
+                    DiscountPercentage = i.DiscountPercentage,
+                    LineSubtotal = 0,
+                }).ToList(),
+            };
         }
     }
 }
