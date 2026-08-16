@@ -1,16 +1,19 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using SistemaERP.Api.Models;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
+using System.IO;
 
 namespace SistemaERP.Api.Controllers
 {
@@ -28,16 +31,58 @@ namespace SistemaERP.Api.Controllers
         }
 
         // POST: api/auth/register
-        // Creates the Tenant and its initial admin User in one operation.
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest model)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            Request.EnableBuffering();
+            var rawBody = await new StreamReader(Request.Body).ReadToEndAsync();
+            Request.Body.Position = 0;
+
+            Console.WriteLine("ContentType: " + Request.ContentType);
+            Console.WriteLine("ContentLength: " + Request.ContentLength);
+            Console.WriteLine("RawBody:\n" + rawBody);
+
+            foreach (var kvp in ModelState)
+            {
+                foreach (var error in kvp.Value.Errors)
+                {
+                    Console.WriteLine($"ModelState Error - Field: {kvp.Key}");
+                    Console.WriteLine($"Message: {error.ErrorMessage}");
+                    Console.WriteLine($"Exception: {error.Exception?.Message ?? "None"}");
+                    if (error.Exception != null)
+                        Console.WriteLine($"Stack: {error.Exception.StackTrace}");
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    RawBody = rawBody,
+                    ContentType = Request.ContentType,
+                    ContentLength = Request.ContentLength,
+                    ModelState = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => new
+                        {
+                            Field = kvp.Key,
+                            Message = e.ErrorMessage,
+                            Exception = e.Exception?.Message
+                        }).ToArray()
+                    ),
+                    Errors = ModelState.SelectMany(kvp => kvp.Value.Errors.Select(e => new
+                    {
+                        Field = kvp.Key,
+                        Error = e.ErrorMessage,
+                        Exception = e.Exception?.Message
+                    }))
+                });
+            }
 
             try
             {
                 var user = await _userService.RegisterAsync(model.TenantName, model.Email, model.Password, model.FullName);
-                return Created(string.Empty, user);
+                return Created("", new { user.Id, user.Email, user.FullName, user.TenantId });
             }
             catch (InvalidOperationException ex)
             {
@@ -46,8 +91,8 @@ namespace SistemaERP.Api.Controllers
         }
 
         // POST: api/auth/login
-        // Validates credentials and returns a JWT valid for 8 hours.
         [HttpPost("login")]
+        [EnableRateLimiting("LoginPolicy")]
         public async Task<IActionResult> Login([FromBody] LoginRequest model)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -56,20 +101,11 @@ namespace SistemaERP.Api.Controllers
             if (user == null) return Unauthorized("Invalid email or password.");
 
             var (token, expiration) = await GenerateTokenAsync(user);
-            return Ok(new LoginResponse
-            {
-                Token = token,
-                Expiration = expiration,
-                UserId = user.Id.ToString(),
-                Email = user.Email,
-                Role = user.Role,
-                TenantId = user.TenantId.ToString()
-            });
+            var tenant = await _userService.GetTenantAsync(user.TenantId);
+            return Ok(new LoginResponse { Token = token, Expiration = expiration, UserId = user.Id.ToString(), Email = user.Email, Role = user.Role, TenantId = user.TenantId.ToString(), TenantName = tenant?.Name ?? string.Empty });
         }
 
         // GET: api/auth/my-permissions
-        // Devuelve los permisos efectivos del usuario autenticado (unión de los permisos de
-        // sus roles). Útil para que el frontend decida qué mostrar/ocultar en la UI.
         [HttpGet("my-permissions")]
         public async Task<IActionResult> MyPermissions()
         {
@@ -77,8 +113,7 @@ namespace SistemaERP.Api.Controllers
             if (userId == Guid.Empty) return BadRequest("UserId missing in claim");
 
             var permissions = await _userService.GetUserPermissionsAsync(userId);
-            return Ok(permissions.Select(p => new
-            {
+            return Ok(permissions.Select(p => new {
                 p.Id,
                 p.Code,
                 p.Module,
@@ -104,17 +139,18 @@ namespace SistemaERP.Api.Controllers
 
             var expiration = DateTime.UtcNow.AddHours(expiryHours);
 
-            // Claims base (compatibilidad): tenant, userId, email y role simple.
+            var tenant = await _userService.GetTenantAsync(user.TenantId);
+            var tenantName = tenant?.Name ?? string.Empty;
+
             var claims = new List<Claim>
             {
                 new Claim("tenantId", user.TenantId.ToString()),
+                new Claim("tenantName", tenantName),
                 new Claim("userId", user.Id.ToString()),
                 new Claim("email", user.Email),
                 new Claim("role", user.Role),
             };
 
-            // Un claim "permission" por cada permiso efectivo del usuario, para que ASP.NET
-            // Core valide políticas de permiso sin consultar la base de datos en cada request.
             var permissions = await _userService.GetUserPermissionsAsync(user.Id);
             foreach (var permission in permissions)
             {

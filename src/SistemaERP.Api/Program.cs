@@ -1,10 +1,22 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using SistemaERP.Infrastructure.DependencyInjection;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Leer PORT para Railway/producción; en local usa defaults (5000/5001 desde launchSettings)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port) && int.TryParse(port, out var p))
+{
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.ListenAnyIP(p);
+    });
+}
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -69,7 +81,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Port=5432;Database=sistema_erp;Username=postgres;Password=Carloskiki47";
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
 builder.Services.AddInfrastructureServices(connectionString);
 
@@ -86,14 +98,65 @@ builder.Services.AddInfrastructureServices(connectionString);
 // sin requerir cambios aquí. Por ahora los controllers existentes siguen con [Authorize].
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, SistemaERP.Api.Authorization.PermissionPolicyProvider>();
 
+// CORS configurable por entorno (dev: appsettings.json, prod: variable de entorno Cors__AllowedOrigin)
+var allowedOrigin = builder.Configuration["Cors:AllowedOrigin"]
+    ?? (builder.Environment.IsDevelopment() ? "http://localhost:5173" : throw new InvalidOperationException("Cors:AllowedOrigin is not configured."));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigin)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
+});
+
+// Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    // Política global: 100 req/min por usuario autenticado (claim "userId") o IP anónima
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var userId = context.User.FindFirst("userId")?.Value;
+        var partitionKey = userId ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ =>
+            new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 4,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+
+    // Política estricta para login: 5 req/min por IP (ventana fija)
+    options.AddFixedWindowLimiter("LoginPolicy", o =>
+    {
+        o.PermitLimit = 5;
+        o.Window = TimeSpan.FromMinutes(1);
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        o.QueueLimit = 0;
+    });
+
+    // Respuesta 429 personalizada
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retry)
+            ? retry.TotalSeconds.ToString("0") : "60";
+        context.HttpContext.Response.Headers.RetryAfter = retryAfter;
+        return new ValueTask(context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = "Too Many Requests",
+            message = "Se ha excedido el límite de peticiones. Intente nuevamente en unos segundos.",
+            retryAfterSeconds = retryAfter
+        }));
+    };
 });
 
 var app = builder.Build();
@@ -117,6 +180,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 
 app.Run();
