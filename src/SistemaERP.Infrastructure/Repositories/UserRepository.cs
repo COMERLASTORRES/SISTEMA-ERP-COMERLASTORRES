@@ -34,7 +34,18 @@ namespace SistemaERP.Infrastructure.Repositories
 
         public async Task<User?> GetByIdAsync(Guid id)
         {
+            // Respeta el filtro global de tenant: solo encuentra usuarios del tenant actual.
+            // Usado en operaciones tenant-scoped (ej. UpdateUserAsync).
             return await _context.Users.FindAsync(id);
+        }
+
+        public async Task<User?> GetByIdIgnoringTenantAsync(Guid id)
+        {
+            // Ignora el filtro de tenant: busca en TODOS los tenants.
+            // Usado SOLO en casos cross-tenant legítimos (ej. reset de contraseña via token).
+            return await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Id == id);
         }
 
         // Carga el usuario junto con sus asignaciones de rol (UserRole). Necesario para
@@ -67,7 +78,6 @@ namespace SistemaERP.Infrastructure.Repositories
         public async Task<User> AddAsync(User user)
         {
             var entity = await _context.Users.AddAsync(user);
-            await _context.SaveChangesAsync();
             return entity.Entity;
         }
 

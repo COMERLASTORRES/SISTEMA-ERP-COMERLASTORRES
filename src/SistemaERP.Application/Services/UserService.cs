@@ -521,7 +521,7 @@ namespace SistemaERP.Application.Services
             await _passwordResetTokenRepository.UpdateAsync(resetToken);
 
             // Actualizar contraseña del usuario
-            var user = await _userRepository.GetByIdAsync(resetToken.UserId);
+            var user = await _userRepository.GetByIdIgnoringTenantAsync(resetToken.UserId);
             if (user == null)
             {
                 _logger.LogError("User {UserId} not found for valid reset token {TokenId}.", resetToken.UserId, resetToken.Id);
