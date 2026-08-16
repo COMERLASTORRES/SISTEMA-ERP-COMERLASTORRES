@@ -27,6 +27,15 @@ public interface IUserService
     // Devuelve la unión de los permisos de todos los roles del usuario (sin duplicados).
     Task<IReadOnlyList<Permission>> GetUserPermissionsAsync(Guid userId);
 
+    // Obtiene el Tenant por su Id (incluye el nombre).
+    Task<Tenant?> GetTenantAsync(Guid tenantId);
+
     // Sincroniza el rol de sistema "Admin" de cada tenant con los permisos nuevos del catálogo.
     Task SyncSystemAdminRolesAsync();
+
+    // Refresh token operations
+    Task<RefreshTokenResult> IssueRefreshTokenAsync(Guid userId, int expiryDays);
+    Task<RefreshTokenResult> RotateRefreshTokenAsync(string refreshToken, int expiryDays);
+    Task RevokeRefreshTokenAsync(string refreshToken);
+    Task RevokeAllUserRefreshTokensAsync(Guid userId);
 }

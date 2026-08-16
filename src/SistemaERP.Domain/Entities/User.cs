@@ -21,4 +21,9 @@ public class User : AuditableEntity
     /// al campo Role para una autorización granular basada en permisos.
     /// </summary>
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+
+    /// <summary>
+    /// Refresh tokens emitidos para este usuario.
+    /// </summary>
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

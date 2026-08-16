@@ -30,6 +30,7 @@ public class SistemaERPDbContext : DbContext
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<RolePermission> RolePermissions { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
+    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +91,33 @@ public class SistemaERPDbContext : DbContext
             .WithMany()
             .HasForeignKey(u => u.TenantId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // RefreshToken: tenant-scoped through User, no soft-delete.
+        // TokenHash is unique (prevents duplicate tokens).
+        // Index on UserId for fast lookup.
+        // Index on ExpiresAt for cleanup of expired tokens.
+        modelBuilder.Entity<RefreshToken>().HasQueryFilter(rt => rt.User.TenantId == _tenantProvider.GetTenantId());
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(rt => rt.TokenHash)
+            .IsUnique();
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(rt => rt.UserId);
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(rt => rt.ExpiresAt);
+
+        // RefreshToken -> User (Cascade: deleting user removes their refresh tokens).
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.User)
+            .WithMany(u => u.RefreshTokens)
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Self-referencing for rotation: ReplacedByTokenId -> Id
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.ReplacedByToken)
+            .WithOne()
+            .HasForeignKey<RefreshToken>(rt => rt.ReplacedByTokenId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Customer multi-tenant query filter (soft-delete via IsActive)
         modelBuilder.Entity<Customer>().HasQueryFilter(c => c.IsActive && c.TenantId == _tenantProvider.GetTenantId());

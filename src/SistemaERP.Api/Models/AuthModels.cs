@@ -18,8 +18,29 @@ public class LoginResponse
 {
     public string Token { get; set; } = string.Empty;
     public DateTime Expiration { get; set; }
+    public string RefreshToken { get; set; } = string.Empty;
+    public DateTime RefreshTokenExpiration { get; set; }
     public string UserId { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string TenantId { get; set; } = string.Empty;
+    public string TenantName { get; set; } = string.Empty;
+}
+
+public class RefreshRequest
+{
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class RefreshResponse
+{
+    public string Token { get; set; } = string.Empty;
+    public DateTime Expiration { get; set; }
+    public string RefreshToken { get; set; } = string.Empty;
+    public DateTime RefreshTokenExpiration { get; set; }
+}
+
+public class LogoutRequest
+{
+    public string RefreshToken { get; set; } = string.Empty;
 }

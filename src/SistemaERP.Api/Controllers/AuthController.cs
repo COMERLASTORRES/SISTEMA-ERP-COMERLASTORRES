@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using SistemaERP.Api.Models;
+using SistemaERP.Application.Repositories;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
@@ -22,11 +23,13 @@ namespace SistemaERP.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly IUserRepository _userRepository;
         private readonly IConfiguration _configuration;
 
-        public AuthController(IUserService userService, IConfiguration configuration)
+        public AuthController(IUserService userService, IUserRepository userRepository, IConfiguration configuration)
         {
             _userService = userService;
+            _userRepository = userRepository;
             _configuration = configuration;
         }
 
@@ -101,8 +104,59 @@ namespace SistemaERP.Api.Controllers
             if (user == null) return Unauthorized("Invalid email or password.");
 
             var (token, expiration) = await GenerateTokenAsync(user);
+            var refreshTokenResult = await _userService.IssueRefreshTokenAsync(user.Id, GetRefreshTokenExpiryDays());
             var tenant = await _userService.GetTenantAsync(user.TenantId);
-            return Ok(new LoginResponse { Token = token, Expiration = expiration, UserId = user.Id.ToString(), Email = user.Email, Role = user.Role, TenantId = user.TenantId.ToString(), TenantName = tenant?.Name ?? string.Empty });
+
+            return Ok(new LoginResponse
+            {
+                Token = token,
+                Expiration = expiration,
+                RefreshToken = refreshTokenResult.RefreshToken,
+                RefreshTokenExpiration = refreshTokenResult.ExpiresAt,
+                UserId = user.Id.ToString(),
+                Email = user.Email,
+                Role = user.Role,
+                TenantId = user.TenantId.ToString(),
+                TenantName = tenant?.Name ?? string.Empty
+            });
+        }
+
+        // POST: api/auth/refresh
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequest model)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(model.RefreshToken)) return BadRequest("Refresh token is required.");
+
+            var refreshResult = await _userService.RotateRefreshTokenAsync(model.RefreshToken, GetRefreshTokenExpiryDays());
+            if (refreshResult == null) return Unauthorized("Invalid or expired refresh token.");
+
+            // Obtener el usuario desde el refresh token rotado
+            var user = await _userRepository.GetByIdAsync(refreshResult.UserId);
+            if (user == null) return Unauthorized("User not found.");
+
+            var (token, expiration) = await GenerateTokenAsync(user);
+
+            return Ok(new RefreshResponse
+            {
+                Token = token,
+                Expiration = expiration,
+                RefreshToken = refreshResult.RefreshToken,
+                RefreshTokenExpiration = refreshResult.ExpiresAt
+            });
+        }
+
+        // POST: api/auth/logout
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] LogoutRequest model)
+        {
+            if (string.IsNullOrWhiteSpace(model.RefreshToken))
+            {
+                return Ok(new { message = "Logout successful (no refresh token provided)." });
+            }
+
+            await _userService.RevokeRefreshTokenAsync(model.RefreshToken);
+            return Ok(new { message = "Logout successful. Refresh token revoked." });
         }
 
         // GET: api/auth/my-permissions
@@ -129,13 +183,19 @@ namespace SistemaERP.Api.Controllers
             return Guid.Empty;
         }
 
+        private int GetRefreshTokenExpiryDays()
+        {
+            var jwt = _configuration.GetSection("Jwt");
+            return int.TryParse(jwt["RefreshTokenExpiryDays"], out var days) ? days : 7;
+        }
+
         private async Task<(string Token, DateTime Expiration)> GenerateTokenAsync(User user)
         {
             var jwt = _configuration.GetSection("Jwt");
             var secret = jwt["Secret"] ?? throw new InvalidOperationException("JWT Secret is not configured.");
             var issuer = jwt["Issuer"];
             var audience = jwt["Audience"];
-            var expiryHours = double.TryParse(jwt["ExpiryHours"], out var h) ? h : 8;
+            var expiryHours = double.TryParse(jwt["ExpiryHours"], out var h) ? h : 1;
 
             var expiration = DateTime.UtcNow.AddHours(expiryHours);
 
