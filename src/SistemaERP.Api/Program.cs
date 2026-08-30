@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using SistemaERP.Infrastructure.DependencyInjection;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -84,13 +85,23 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Connection string: Railway inyecta DATABASE_URL (postgres://...),
-// fallback vacío para que no haya credenciales hardcodeadas en config.
+// Connection string: Render inyecta DATABASE_URL (formato URL de Neon).
+// Convierte URI a keyword=value para EF Core + Npgsql.
+// Fallback a appsettings.json para desarrollo local (appsettings.Development.json).
 var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
-var connectionString = databaseUrl
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured. " +
-    "Establece DATABASE_URL como variable de entorno en Railway (sin credenciales reales en appsettings.json).");
+string connectionString;
+if (!string.IsNullOrEmpty(databaseUrl))
+{
+    // Convierte URI de Neon (postgresql://...) a keyword=value para Npgsql/EF Core
+    connectionString = ParseAndValidateNeonConnectionString(databaseUrl);
+}
+else
+{
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException(
+            "Connection string 'DefaultConnection' is not configured. " +
+            "Establece DATABASE_URL como variable de entorno en Render/Neon.");
+}
 
 builder.Services.AddInfrastructureServices(connectionString);
 
@@ -201,4 +212,98 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
 
+// Test connection to Neon (no-throw on fail)
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await TestNeonConnectionAsync(connectionString, logger);
+}
+
 app.Run();
+
+// Test parse Neon URI format with dummy data (ejecutado solo si DEBUG_TESTS está definido)
+#if DEBUG
+{
+    var demoUri = "postgresql://neondb_user:neondb_password@ep-wild-???.us-east-2.aws.neon.tech:5432/neondb?sslmode=require";
+    var parsed = ParseAndValidateNeonConnectionString(demoUri);
+    Console.WriteLine($"URI NEON demo parseado: {parsed}");
+}
+#endif
+
+// ---------------------------------------------------------------------------
+// Helper: parsea la URI de conexión de Neon (postgresql://...) a keyword=value
+// compatible con NpgsqlConnectionStringBuilder / EF Core, asegurando SSL.
+static string ParseAndValidateNeonConnectionString(string databaseUrl)
+{
+    try
+    {
+        var uri = new Uri(databaseUrl);
+        var query = uri.Query?.TrimStart('?') ?? string.Empty;
+        var ps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = pair.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (kv.Length == 2)
+                ps[kv[0]] = kv[1];
+        }
+
+        var builder = new NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port == -1 ? 5432 : uri.Port,
+            Database = uri.AbsolutePath.Trim('/'),
+            // Uri.UnescapeDataString() decode %20, %40, %23 etc. before passing to Npgsql.
+            Username = uri.UserInfo.Contains(':') ? Uri.UnescapeDataString(uri.UserInfo.Split(':')[0]) : string.Empty,
+            Password = uri.UserInfo.Contains(':') ? Uri.UnescapeDataString(uri.UserInfo.Split(':')[1]) : string.Empty,
+            SslMode = SslMode.Require,  // Forzado: Neon exige SSL
+        };
+
+        // Permite sobrescribir sslmode si viene en query params (ej: disable, prefer)
+        if (ps.TryGetValue("sslmode", out var sslModeVal))
+        {
+            if (Enum.TryParse<SslMode>(sslModeVal, true, out var parsed))
+                builder.SslMode = parsed;
+        }
+
+        // Parámetros extra (ej: channel_verbosity, sslcompression, etc.)
+        foreach (var kv in ps)
+        {
+            var key = kv.Key.ToLowerInvariant();
+            if (new[] { "sslmode", "host", "port", "database", "user", "password", "host", "port", "dbname", "userinfo", "username", "sslmode", "sslmode" }.Contains(key))
+                continue;
+            try { builder[kv.Key] = kv.Value; } catch { /* parámetro desconocido */ }
+        }
+
+        // Asegurar un CommandTimeout razonable (Neon free tier puede cold-start)
+        if (builder.CommandTimeout <= 0)
+            builder.CommandTimeout = 30;
+
+        return builder.ToString();
+    }
+    catch (Exception ex)
+    {
+        throw new InvalidOperationException(
+            "DATABASE_URL tiene un formato inválido. " +
+            "Esperado: postgresql://user:pass@host:port/db?sslmode=require", ex);
+    }
+}
+
+// Health check de conexión a Neon (se ejecuta al arrancar, no bloquea si falla)
+static async Task TestNeonConnectionAsync(string connectionString, ILogger logger)
+{
+    try
+    {
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT version()";
+        var version = await cmd.ExecuteScalarAsync();
+        logger.LogInformation("✅ CONEXIÓN NEON VERIFICADA: {Version}", version);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ FALLO AL CONECTAR A NEON: {Message}");
+        // No lanzamos para que la app siga iniciando; el health check de Render detectará fallos
+    }
+}
