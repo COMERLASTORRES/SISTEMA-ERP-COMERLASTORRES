@@ -57,8 +57,12 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// JWT: Railway inyecta Jwt__Secret como variable de entorno. La config en appsettings.json
+// solo contiene valores que no son secretos (Issuer, Audience, ExpiryHours, etc.).
 var jwt = builder.Configuration.GetSection("Jwt");
-var secret = jwt["Secret"] ?? throw new InvalidOperationException("JWT Secret is not configured.");
+var secret = Environment.GetEnvironmentVariable("Jwt__Secret")
+    ?? jwt["Secret"]
+    ?? throw new InvalidOperationException("JWT Secret is not configured. Establece Jwt__Secret como variable de entorno en Railway.");
 var key = Encoding.UTF8.GetBytes(secret);
 builder.Services.AddAuthentication(options =>
 {
@@ -80,8 +84,13 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+// Connection string: Railway inyecta DATABASE_URL (postgres://...),
+// fallback vacío para que no haya credenciales hardcodeadas en config.
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+var connectionString = databaseUrl
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured. " +
+    "Establece DATABASE_URL como variable de entorno en Railway (sin credenciales reales en appsettings.json).");
 
 builder.Services.AddInfrastructureServices(connectionString);
 

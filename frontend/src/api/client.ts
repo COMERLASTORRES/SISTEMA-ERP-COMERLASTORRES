@@ -8,8 +8,10 @@ export const tokenStorage = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5045';
+
 export const api = axios.create({
-  baseURL: 'http://localhost:5045',
+  baseURL: baseURL,
 });
 
 api.interceptors.request.use((config) => {
