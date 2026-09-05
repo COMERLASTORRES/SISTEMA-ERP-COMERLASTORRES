@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SistemaERP.Application.Services;
 using SistemaERP.Application.DTOs;
+using SistemaERP.Application.Services;
 using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using System;
@@ -83,6 +83,8 @@ namespace SistemaERP.Api.Controllers
         [Authorize(Policy = PermissionCodes.SuppliersEdit)]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdateSupplierDto dto)
         {
+            dto.Id = id;
+
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return BadRequest("TenantId missing in claim");
 
@@ -90,7 +92,6 @@ namespace SistemaERP.Api.Controllers
             if (existing == null) return NotFound();
 
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (id != dto.Id) return BadRequest("ID mismatch");
 
             try
             {

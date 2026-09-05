@@ -1,9 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Application.Services;
 using SistemaERP.Domain.Entities;
@@ -33,8 +33,23 @@ public class CustomerService : ICustomerService
         return await _customerRepository.GetByIdAsync(id);
     }
 
-    public async Task<Customer> CreateAsync(Customer customer)
+    // Maps CreateCustomerDto into a new Customer entity belonging to the given tenant.
+    public async Task<Customer> CreateAsync(CreateCustomerDto dto, Guid tenantId)
     {
+        var customer = new Customer
+        {
+            TenantId = tenantId,
+            Name = dto.Name,
+            DocumentType = dto.DocumentType,
+            DocumentNumber = dto.DocumentNumber,
+            CustomerType = dto.CustomerType,
+            CreditLimit = dto.CreditLimit,
+            Email = dto.Email,
+            Phone = dto.Phone,
+            Address = dto.Address,
+            IsActive = dto.IsActive,
+        };
+
         ValidateDocument(customer);
 
         var existing = await _customerRepository.GetAllAsync();
@@ -51,10 +66,27 @@ public class CustomerService : ICustomerService
         return await _customerRepository.AddAsync(customer);
     }
 
-    public async Task<Customer> UpdateAsync(Customer customer)
+    // Applies the DTO fields onto the existing Customer entity.
+    public async Task<Customer> UpdateAsync(UpdateCustomerDto dto)
     {
-        ValidateDocument(customer);
+        var customer = await _customerRepository.GetByIdAsync(dto.Id);
+        if (customer == null)
+        {
+            _logger.LogWarning("Customer with Id {CustomerId} not found for update.", dto.Id);
+            throw new InvalidOperationException("Customer not found.");
+        }
 
+        customer.Name = dto.Name;
+        customer.DocumentType = dto.DocumentType;
+        customer.DocumentNumber = dto.DocumentNumber;
+        customer.CustomerType = dto.CustomerType;
+        customer.CreditLimit = dto.CreditLimit;
+        customer.Email = dto.Email;
+        customer.Phone = dto.Phone;
+        customer.Address = dto.Address;
+        customer.IsActive = dto.IsActive;
+
+        // Reject if the document number already belongs to another customer in the same tenant.
         var existing = await _customerRepository.GetAllAsync();
         foreach (var c in existing)
         {
@@ -64,6 +96,8 @@ public class CustomerService : ICustomerService
                 throw new InvalidOperationException($"Document number '{customer.DocumentNumber}' already exists for this tenant.");
             }
         }
+
+        ValidateDocument(customer);
 
         try
         {
@@ -131,7 +165,7 @@ public class CustomerService : ICustomerService
         }
     }
 
-    private bool IsDigits(string value, int length)
+    private static bool IsDigits(string value, int length)
     {
         return !string.IsNullOrWhiteSpace(value) && value.Length == length && value.All(char.IsDigit);
     }

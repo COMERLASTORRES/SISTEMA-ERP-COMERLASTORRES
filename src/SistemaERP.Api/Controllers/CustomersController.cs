@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SistemaERP.Application.Services;
 using SistemaERP.Application.DTOs;
+using SistemaERP.Application.Services;
 using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using System;

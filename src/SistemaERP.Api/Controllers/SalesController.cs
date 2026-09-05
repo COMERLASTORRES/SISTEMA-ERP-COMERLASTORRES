@@ -17,11 +17,11 @@ namespace SistemaERP.Api.Controllers
     public class SalesController : ControllerBase
     {
         private readonly ISaleService _saleService;
-        private readonly ISaleDocumentService _saleDocumentService;
-        public SalesController(ISaleService saleService, ISaleDocumentService saleDocumentService)
+        // TEMP: ISaleDocumentService not yet implemented
+        // private readonly ISaleDocumentService _saleDocumentService;
+        public SalesController(ISaleService saleService)
         {
             _saleService = saleService;
-            _saleDocumentService = saleDocumentService;
         }
 
         // GET: api/Sales?status=0&customerId=...&page=1&pageSize=10
@@ -238,21 +238,21 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
-        // GET: api/Sales/{id}/document/pdf
-        [HttpGet("{id}/document/pdf")]
-        [Authorize(Policy = PermissionCodes.SalesView)]
-        public async Task<IActionResult> GetSaleDocumentPdf(Guid id)
-        {
-            try
-            {
-                var pdfBytes = await _saleDocumentService.GenerateSaleDocumentPdfAsync(id);
-                return File(pdfBytes, "application/pdf", $"comprobante-venta-{id}.pdf");
-            }
-            catch (InvalidOperationException ex)
-            {
-                return NotFound(ex.Message);
-            }
-        }
+        // TEMP: GetSaleDocumentPdf not yet implemented
+        // [HttpGet("{id}/document/pdf")]
+        // [Authorize(Policy = PermissionCodes.SalesView)]
+        // public async Task<IActionResult> GetSaleDocumentPdf(Guid id)
+        // {
+        //     try
+        //     {
+        //         var pdfBytes = await _saleDocumentService.GenerateSaleDocumentPdfAsync(id);
+        //         return File(pdfBytes, "application/pdf", $"comprobante-venta-{id}.pdf");
+        //     }
+        //     catch (InvalidOperationException ex)
+        //     {
+        //         return NotFound(ex.Message);
+        //     }
+        // }
 
         private Guid GetTenantId()
         {

@@ -16,11 +16,11 @@ namespace SistemaERP.Api.Controllers
     public class PurchasesController : ControllerBase
     {
         private readonly IPurchaseService _purchaseService;
-        private readonly IPurchaseDocumentService _purchaseDocumentService;
-        public PurchasesController(IPurchaseService purchaseService, IPurchaseDocumentService purchaseDocumentService)
+        // TEMP: IPurchaseDocumentService not yet implemented
+        // private readonly IPurchaseDocumentService _purchaseDocumentService;
+        public PurchasesController(IPurchaseService purchaseService)
         {
             _purchaseService = purchaseService;
-            _purchaseDocumentService = purchaseDocumentService;
         }
 
         // GET: api/Purchases?status=0&supplierId=...&paymentType=1&page=1&pageSize=10
@@ -211,21 +211,21 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
-        // GET: api/Purchases/{id}/document/pdf
-        [HttpGet("{id}/document/pdf")]
-        [Authorize(Policy = PermissionCodes.PurchasesView)]
-        public async Task<IActionResult> GetPurchaseDocumentPdf(Guid id)
-        {
-            try
-            {
-                var pdfBytes = await _purchaseDocumentService.GeneratePurchaseDocumentPdfAsync(id);
-                return File(pdfBytes, "application/pdf", $"comprobante-compra-{id}.pdf");
-            }
-            catch (InvalidOperationException ex)
-            {
-                return NotFound(ex.Message);
-            }
-        }
+        // TEMP: GetPurchaseDocumentPdf not yet implemented
+        // [HttpGet("{id}/document/pdf")]
+        // [Authorize(Policy = PermissionCodes.PurchasesView)]
+        // public async Task<IActionResult> GetPurchaseDocumentPdf(Guid id)
+        // {
+        //     try
+        //     {
+        //         var pdfBytes = await _purchaseDocumentService.GeneratePurchaseDocumentPdfAsync(id);
+        //         return File(pdfBytes, "application/pdf", $"comprobante-compra-{id}.pdf");
+        //     }
+        //     catch (InvalidOperationException ex)
+        //     {
+        //         return NotFound(ex.Message);
+        //     }
+        // }
 
         private Guid GetTenantId()
         {
