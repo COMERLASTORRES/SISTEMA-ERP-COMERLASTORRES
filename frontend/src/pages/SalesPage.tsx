@@ -8,6 +8,7 @@ import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
 import { useSales, useDeleteSale, useConfirmSale, useCancelSale } from '../hooks/useSales';
 import { useCustomers } from '../hooks/useCustomers';
+import { api } from '../api/client';
 import {
   SaleStatus,
   SALE_STATUS_LABELS,
@@ -93,6 +94,25 @@ function SalesContent() {
     }
   };
 
+  const downloadExcel = async () => {
+    try {
+      let url = '/api/Sales/export/excel';
+      if (statusFilter) url += `?status=${encodeURIComponent(statusFilter)}`;
+      const response = await api.get(url, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = 'ventas.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(urlObj);
+    } catch (err: any) {
+      window.alert(extractError(err));
+    }
+  };
+
   if (isLoading) return <LoadingSpinner />;
   if (isError) return <ErrorMessage message={extractError(error)} />;
 
@@ -102,9 +122,14 @@ function SalesContent() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Ventas</h1>
-        <RequirePermission codes={PermissionCodes.SalesCreate}>
-          <Button onClick={() => navigate('/ventas/nueva')}>Nueva Venta</Button>
-        </RequirePermission>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={downloadExcel}>
+            📊 Exportar Excel
+          </Button>
+          <RequirePermission codes={PermissionCodes.SalesCreate}>
+            <Button onClick={() => navigate('/ventas/nueva')}>Nueva Venta</Button>
+          </RequirePermission>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-4">

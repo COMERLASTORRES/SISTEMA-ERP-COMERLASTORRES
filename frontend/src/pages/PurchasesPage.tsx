@@ -8,6 +8,7 @@ import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
 import { usePurchases, useDeletePurchase, useConfirmPurchase, useCancelPurchase } from '../hooks/usePurchases';
 import { useSuppliers } from '../hooks/useSuppliers';
+import { api } from '../api/client';
 import { PurchaseStatus, PaymentType, PURCHASE_STATUS_LABELS, PAYMENT_TYPE_LABELS, type Purchase } from '../api/purchases';
 
 const PAGE_SIZE = 10;
@@ -96,6 +97,28 @@ function PurchasesContent() {
     }
   };
 
+  const downloadExcel = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter) params.append('status', statusFilter);
+      if (supplierFilter) params.append('supplierId', supplierFilter);
+      const qs = params.toString();
+      const url = `/api/Purchases/export/excel${qs ? `?${qs}` : ''}`;
+      const response = await api.get(url, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = 'compras.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(urlObj);
+    } catch (err: any) {
+      window.alert(extractError(err));
+    }
+  };
+
   if (isLoading) return <LoadingSpinner />;
   if (isError) return <ErrorMessage message={extractError(error)} />;
 
@@ -105,16 +128,21 @@ function PurchasesContent() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Compras</h1>
-        <RequirePermission
-          codes={PermissionCodes.PurchasesCreate}
-          fallback={
-            <span className="text-sm text-gray-500">
-              No tienes permiso para crear compras.
-            </span>
-          }
-        >
-          <Button onClick={() => navigate('/compras/nueva')}>Nueva Compra</Button>
-        </RequirePermission>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={downloadExcel}>
+            📊 Exportar Excel
+          </Button>
+          <RequirePermission
+            codes={PermissionCodes.PurchasesCreate}
+            fallback={
+              <span className="text-sm text-gray-500">
+                No tienes permiso para crear compras.
+              </span>
+            }
+          >
+            <Button onClick={() => navigate('/compras/nueva')}>Nueva Compra</Button>
+          </RequirePermission>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-4">
