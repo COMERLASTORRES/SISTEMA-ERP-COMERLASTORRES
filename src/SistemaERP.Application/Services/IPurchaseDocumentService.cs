@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using SistemaERP.Domain.Entities;
 using System.Threading.Tasks;
 
 namespace SistemaERP.Application.Services;
@@ -12,4 +14,10 @@ public interface IPurchaseDocumentService
     /// - Tabla detallada de items (producto, cantidad, precio unitario, descuento, subtotal)
     /// </summary>
     Task<byte[]> GeneratePurchaseDocumentPdfAsync(Guid purchaseId);
+
+    /// <summary>
+    /// Genera un archivo Excel (.xlsx) con la lista de compras.
+    /// Columnas: Número, Fecha, Proveedor, Tipo de Pago, Estado, Subtotal, IGV, Total.
+    /// </summary>
+    Task<byte[]> GeneratePurchasesExcelAsync(IReadOnlyList<Purchase> purchases);
 }

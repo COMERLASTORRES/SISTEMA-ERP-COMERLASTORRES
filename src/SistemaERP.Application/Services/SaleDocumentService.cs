@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -163,5 +164,77 @@ public class SaleDocumentService : ISaleDocumentService
         });
 
         return document.GeneratePdf();
+    }
+
+    /// <summary>
+    /// Genera un archivo Excel (.xlsx) con la lista de ventas.
+    /// Columnas: Número, Fecha, Cliente, Tipo de Pago, Estado, Subtotal, IGV, Total.
+    /// </summary>
+    public async Task<byte[]> GenerateSalesExcelAsync(IReadOnlyList<Sale> sales)
+    {
+        // Cargar nombres de clientes en una consulta batch
+        var customerIds = sales.Select(s => s.CustomerId).Distinct().ToList();
+        var customers = (await _customerRepository.GetAllAsync())
+            .Where(c => customerIds.Contains(c.Id))
+            .ToDictionary(c => c.Id, c => c.Name);
+
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Ventas");
+
+        // ---- Encabezados ----
+        var headers = new[] { "Número", "Fecha", "Cliente", "Tipo de Pago", "Estado", "Subtotal", "IGV", "Total" };
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = worksheet.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        // ---- Filas ----
+        for (var row = 0; row < sales.Count; row++)
+        {
+            var sale = sales[row];
+            var r = row + 2; // fila 1 = headers
+
+            var customerName = customers.GetValueOrDefault(sale.CustomerId) ?? "—";
+
+            var paymentTypeLabel = sale.PaymentType switch
+            {
+                PaymentType.Cash => "Contado",
+                PaymentType.Credit => $"Crédito ({sale.CreditDays} días)",
+                _ => "—"
+            };
+
+            var statusLabel = sale.Status switch
+            {
+                SaleStatus.Draft => "Borrador",
+                SaleStatus.Confirmed => "Confirmado",
+                SaleStatus.Cancelled => "Cancelado",
+                _ => "—"
+            };
+
+            worksheet.Cell(r, 1).Value = sale.SaleNumber;
+            worksheet.Cell(r, 2).Value = sale.SaleDate.ToString("dd/MM/yyyy");
+            worksheet.Cell(r, 3).Value = customerName;
+            worksheet.Cell(r, 4).Value = paymentTypeLabel;
+            worksheet.Cell(r, 5).Value = statusLabel;
+            worksheet.Cell(r, 6).Value = sale.Subtotal;
+            worksheet.Cell(r, 7).Value = sale.Tax;
+            worksheet.Cell(r, 8).Value = sale.Total;
+
+            // Formato numérico para columnas de dinero
+            worksheet.Cell(r, 6).Style.NumberFormat.Format = "#,##0.00";
+            worksheet.Cell(r, 7).Style.NumberFormat.Format = "#,##0.00";
+            worksheet.Cell(r, 8).Style.NumberFormat.Format = "#,##0.00";
+        }
+
+        // Ancho automático de columnas
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
     }
 }

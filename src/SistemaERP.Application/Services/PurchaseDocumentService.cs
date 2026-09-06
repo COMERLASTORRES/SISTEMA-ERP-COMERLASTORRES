@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -156,5 +157,77 @@ public class PurchaseDocumentService : IPurchaseDocumentService
         });
 
         return document.GeneratePdf();
+    }
+
+    /// <summary>
+    /// Genera un archivo Excel (.xlsx) con la lista de compras.
+    /// Columnas: Número, Fecha, Proveedor, Tipo de Pago, Estado, Subtotal, IGV, Total.
+    /// </summary>
+    public async Task<byte[]> GeneratePurchasesExcelAsync(IReadOnlyList<Purchase> purchases)
+    {
+        // Cargar nombres de proveedores en una consulta batch
+        var supplierIds = purchases.Select(p => p.SupplierId).Distinct().ToList();
+        var suppliers = (await _supplierRepository.GetAllAsync())
+            .Where(s => supplierIds.Contains(s.Id))
+            .ToDictionary(s => s.Id, s => s.Name);
+
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Compras");
+
+        // ---- Encabezados ----
+        var headers = new[] { "Número", "Fecha", "Proveedor", "Tipo de Pago", "Estado", "Subtotal", "IGV", "Total" };
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = worksheet.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        // ---- Filas ----
+        for (var row = 0; row < purchases.Count; row++)
+        {
+            var purchase = purchases[row];
+            var r = row + 2; // fila 1 = headers
+
+            var supplierName = suppliers.GetValueOrDefault(purchase.SupplierId) ?? "—";
+
+            var paymentTypeLabel = purchase.PaymentType switch
+            {
+                PaymentType.Cash => "Contado",
+                PaymentType.Credit => $"Crédito ({purchase.CreditDays} días)",
+                _ => "—"
+            };
+
+            var statusLabel = purchase.Status switch
+            {
+                PurchaseStatus.Draft => "Borrador",
+                PurchaseStatus.Confirmed => "Confirmado",
+                PurchaseStatus.Cancelled => "Cancelado",
+                _ => "—"
+            };
+
+            worksheet.Cell(r, 1).Value = purchase.PurchaseNumber;
+            worksheet.Cell(r, 2).Value = purchase.PurchaseDate.ToString("dd/MM/yyyy");
+            worksheet.Cell(r, 3).Value = supplierName;
+            worksheet.Cell(r, 4).Value = paymentTypeLabel;
+            worksheet.Cell(r, 5).Value = statusLabel;
+            worksheet.Cell(r, 6).Value = purchase.Subtotal;
+            worksheet.Cell(r, 7).Value = purchase.Tax;
+            worksheet.Cell(r, 8).Value = purchase.Total;
+
+            // Formato numérico para columnas de dinero
+            worksheet.Cell(r, 6).Style.NumberFormat.Format = "#,##0.00";
+            worksheet.Cell(r, 7).Style.NumberFormat.Format = "#,##0.00";
+            worksheet.Cell(r, 8).Style.NumberFormat.Format = "#,##0.00";
+        }
+
+        // Ancho automático de columnas
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
     }
 }

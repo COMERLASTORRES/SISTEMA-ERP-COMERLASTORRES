@@ -231,6 +231,25 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
+        // GET: api/Purchases/export/excel?status=0&supplierId=...
+        [HttpGet("export/excel")]
+        [Authorize(Policy = PermissionCodes.PurchasesView)]
+        public async Task<IActionResult> ExportExcel(
+            [FromQuery] PurchaseStatus? status,
+            [FromQuery] Guid? supplierId)
+        {
+            var all = (await _purchaseService.GetAllAsync()).AsEnumerable();
+
+            if (status.HasValue)
+                all = all.Where(p => p.Status == status.Value);
+            if (supplierId.HasValue)
+                all = all.Where(p => p.SupplierId == supplierId.Value);
+
+            var purchases = all.ToList();
+            var bytes = await _purchaseDocumentService.GeneratePurchasesExcelAsync(purchases);
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "compras.xlsx");
+        }
+
         private Guid GetTenantId()
         {
             var claim = User.FindFirst("tenantId");

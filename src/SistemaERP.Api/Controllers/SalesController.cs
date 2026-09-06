@@ -258,6 +258,25 @@ namespace SistemaERP.Api.Controllers
             }
         }
 
+        // GET: api/Sales/export/excel?status=0&customerId=...
+        [HttpGet("export/excel")]
+        [Authorize(Policy = PermissionCodes.SalesView)]
+        public async Task<IActionResult> ExportExcel(
+            [FromQuery] SaleStatus? status,
+            [FromQuery] Guid? customerId)
+        {
+            var all = (await _saleService.GetAllAsync()).AsEnumerable();
+
+            if (status.HasValue)
+                all = all.Where(s => s.Status == status.Value);
+            if (customerId.HasValue)
+                all = all.Where(s => s.CustomerId == customerId.Value);
+
+            var sales = all.ToList();
+            var bytes = await _saleDocumentService.GenerateSalesExcelAsync(sales);
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ventas.xlsx");
+        }
+
         private Guid GetTenantId()
         {
             var claim = User.FindFirst("tenantId");
