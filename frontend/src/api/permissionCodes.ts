@@ -83,4 +83,8 @@ export const PermissionCodes = {
   // reports
   ReportsView: 'reports.view',
   ReportsExport: 'reports.export',
+
+  // settings
+  SettingsView: 'settings.view',
+  SettingsEdit: 'settings.edit',
 } as const;
