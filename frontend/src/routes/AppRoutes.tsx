@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
+import { LayoutNoPadding } from '../components/layout/LayoutNoPadding';
 import { WelcomePage } from '../pages/WelcomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
@@ -30,9 +31,13 @@ export function AppRoutes() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
-          <Route element={<Layout />}>
-            {/* WelcomePage is now the home page */}
+          {/* WelcomePage sin sidebar — ocupa pantalla completa */}
+          <Route element={<LayoutNoPadding />}>
             <Route path="/" element={<WelcomePage />} />
+          </Route>
+
+          {/* Resto de páginas con sidebar */}
+          <Route element={<Layout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/categorias" element={<CategoriesPage />} />
             <Route path="/productos" element={<ProductsPage />} />
