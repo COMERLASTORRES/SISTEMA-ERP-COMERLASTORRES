@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
+import { WelcomePage } from '../pages/WelcomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { CategoriesPage } from '../pages/CategoriesPage';
@@ -30,7 +31,9 @@ export function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
-            <Route path="/" element={<DashboardPage />} />
+            {/* WelcomePage is now the home page */}
+            <Route path="/" element={<WelcomePage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/categorias" element={<CategoriesPage />} />
             <Route path="/productos" element={<ProductsPage />} />
             <Route path="/clientes" element={<CustomersPage />} />
