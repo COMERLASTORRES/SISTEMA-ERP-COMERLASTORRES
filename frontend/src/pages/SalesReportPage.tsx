@@ -7,6 +7,7 @@ import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
 import { useSalesByPeriodReport } from '../hooks/useReports';
 import { useCustomers } from '../hooks/useCustomers';
+import { api } from '../api/client';
 import {
   SaleStatus,
   PaymentStatus,
@@ -90,13 +91,36 @@ function SalesReportContent() {
       paymentStatus: paymentStatus === '' ? undefined : (Number(paymentStatus) as PaymentStatus),
       // "Todas" (value '') -> includeAllStatuses=true (tabla sin filtro de estado), sin
       // documentStatus. Estado específico -> documentStatus y sin includeAllStatuses.
-      // Resumen siempre solo Confirmed en cualquier caso.
       documentStatus: documentStatus === '' ? undefined : (Number(documentStatus) as SaleStatus),
       includeAllStatuses: documentStatus === '' ? true : undefined,
       search: search.trim() || undefined,
       page: 1,
       pageSize: PAGE_SIZE,
     });
+  };
+
+  const downloadExcel = async () => {
+    try {
+      let url = '/api/reports/sales/by-period/export/excel';
+      if (dateFrom) url += `?dateFrom=${encodeURIComponent(dateFrom)}`;
+      if (dateTo) url += `&dateTo=${encodeURIComponent(dateTo)}`;
+      if (customerId) url += `&customerId=${encodeURIComponent(customerId)}`;
+      if (paymentStatus !== '') url += `&paymentStatus=${encodeURIComponent(paymentStatus)}`;
+      if (documentStatus !== '') url += `&documentStatus=${encodeURIComponent(documentStatus)}`;
+      if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+      const response = await api.get(url, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = 'ventas-por-periodo.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(urlObj);
+    } catch (err: any) {
+      window.alert(extractError(err));
+    }
   };
 
   const handlePageChange = (next: number) => {
@@ -107,6 +131,11 @@ function SalesReportContent() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-gray-800">Reporte de Ventas por Período</h1>
+      <div className="flex items-center justify-between">
+        <Button variant="secondary" onClick={downloadExcel}>
+          📊 Exportar Excel
+        </Button>
+      </div>
 
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
