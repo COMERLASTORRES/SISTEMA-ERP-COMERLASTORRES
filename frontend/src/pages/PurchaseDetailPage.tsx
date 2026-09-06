@@ -10,6 +10,7 @@ import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useOpenCashRegister } from '../hooks/useCashRegisters';
+import { api } from '../api/client';
 import {
   usePurchase,
   useConfirmPurchase,
@@ -112,6 +113,25 @@ function PurchaseDetailContent() {
     }
   };
 
+  const downloadPdf = async () => {
+    if (!purchase?.purchaseNumber) return;
+    try {
+      const response = await api.get(`/api/Purchases/${id}/document/pdf`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compra-${purchase.purchaseNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setFormError(extractError(err));
+    }
+  };
+
   const supplierName = (sid: string) => suppliers.find((s) => s.id === sid)?.name ?? sid;
   const productName = (pid: string) => products.find((p) => p.id === pid)?.name ?? pid;
 
@@ -145,9 +165,14 @@ function PurchaseDetailContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Compra {purchase.purchaseNumber}</h1>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[purchase.status]}`}>
-          {PURCHASE_STATUS_LABELS[purchase.status]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[purchase.status]}`}>
+            {PURCHASE_STATUS_LABELS[purchase.status]}
+          </span>
+          <Button variant="secondary" onClick={downloadPdf} title="Descargar PDF">
+            📄 PDF
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">

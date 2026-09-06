@@ -10,6 +10,7 @@ import { PermissionCodes } from '../api/permissionCodes';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
 import { useOpenCashRegister } from '../hooks/useCashRegisters';
+import { api } from '../api/client';
 import {
   useSale,
   useConfirmSale,
@@ -168,6 +169,25 @@ function SaleDetailContent() {
     }
   };
 
+  const downloadPdf = async () => {
+    if (!sale?.saleNumber) return;
+    try {
+      const response = await api.get(`/api/Sales/${id}/document/pdf`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `venta-${sale.saleNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setFormError(extractError(err));
+    }
+  };
+
   if (isLoading) return <LoadingSpinner />;
   if (isError) return <ErrorMessage message={extractError(error)} />;
   if (!sale) return <ErrorMessage message="Venta no encontrada." />;
@@ -191,6 +211,13 @@ function SaleDetailContent() {
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[sale.status]}`}>
             {SALE_STATUS_LABELS[sale.status]}
           </span>
+          <Button
+            variant="secondary"
+            onClick={downloadPdf}
+            title="Descargar PDF"
+          >
+            📄 PDF
+          </Button>
         </div>
       </div>
 
