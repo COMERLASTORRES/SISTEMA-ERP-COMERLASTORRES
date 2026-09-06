@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaERP.Application.Reports.Dtos;
 using SistemaERP.Application.Reports.Sales;
+using SistemaERP.Application.Reports.StockMovements;
+using SistemaERP.Domain.Entities;
 using SistemaERP.Domain;
 
 namespace SistemaERP.Api.Controllers;
@@ -16,10 +18,13 @@ namespace SistemaERP.Api.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly ISalesReportService _salesReportService;
+    private readonly IStockMovementReportService _stockMovementReportService;
 
-    public ReportsController(ISalesReportService salesReportService)
+    public ReportsController(ISalesReportService salesReportService,
+        IStockMovementReportService stockMovementReportService)
     {
         _salesReportService = salesReportService;
+        _stockMovementReportService = stockMovementReportService;
     }
 
     /// <summary>
@@ -46,5 +51,22 @@ public class ReportsController : ControllerBase
         var items = await _salesReportService.GetAllSalesByPeriodAsync(filter);
         var bytes = await _salesReportService.GenerateSalesReportExcelAsync(items);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ventas-por-periodo.xlsx");
+    }
+
+    /// <summary>
+    /// Exporta movimientos de stock a Excel (.xlsx). Filtros soportados:
+    /// dateFrom, dateTo, productId (nullable - sin filtro), type (nullable).
+    /// </summary>
+    [HttpGet("stock-movements/export/excel")]
+    [Authorize(Policy = PermissionCodes.ReportsExport)]
+    public async Task<IActionResult> ExportStockMovementsExcel(
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] Guid? productId,
+        [FromQuery] StockMovementType? type)
+    {
+        var items = await _stockMovementReportService.GetAllMovementsAsync(dateFrom, dateTo, productId, type);
+        var bytes = await _stockMovementReportService.GenerateStockMovementsExcelAsync(items);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "movimientos-stock.xlsx");
     }
 }

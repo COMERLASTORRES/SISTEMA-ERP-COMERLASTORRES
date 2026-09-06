@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaERP.Application.Reports.Sales;
+using SistemaERP.Application.Reports.StockMovements;
 using SistemaERP.Infrastructure.Contexts;
 using SistemaERP.Infrastructure.Repositories;
 using SistemaERP.Application.Services;
@@ -57,6 +58,8 @@ public static class ServiceCollectionExtensions
         // Reports: solo Sales existe en el repo actual; Purchases/Inventory/Cash no están implementados yet
         services.AddScoped<ISalesReportRepository, SalesReportRepository>();
         services.AddScoped<ISalesReportService, SalesReportService>();
+        services.AddScoped<IStockMovementReportRepository, StockMovementReportRepository>();
+        services.AddScoped<IStockMovementReportService, StockMovementReportService>();
 
         services.AddDbContextInitializer();
 

@@ -6,6 +6,8 @@ using SistemaERP.Domain;
 using SistemaERP.Domain.Entities;
 using SistemaERP.Api.Models;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -142,6 +144,86 @@ namespace SistemaERP.Api.Controllers
             var register = await _cashRegisterService.GetByIdAsync(id);
             if (register == null) return NotFound();
             return Ok(MapToDto(register));
+        }
+
+        // GET: api/CashRegisters/{id}/movements/export/excel
+        [HttpGet("{id}/movements/export/excel")]
+        [Authorize(Policy = PermissionCodes.CashRegisterView)]
+        public async Task<IActionResult> ExportMovementsExcel(Guid id)
+        {
+            var register = await _cashRegisterService.GetByIdAsync(id);
+            if (register == null) return NotFound();
+            var bytes = GenerateCashMovementsExcel(register.Movements);
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"movimientos-caja-{register.CashRegisterNumber}.xlsx");
+        }
+
+        private static byte[] GenerateCashMovementsExcel(IEnumerable<CashMovement> movements)
+        {
+            using var workbook = new ClosedXML.Excel.XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Movs. Caja");
+
+            // ---- Encabezados ----
+            var headers = new[] { "Fecha", "Tipo", "Motivo", "Método de Pago", "Monto", "Descripción" };
+            for (var i = 0; i < headers.Length; i++)
+            {
+                var cell = worksheet.Cell(1, i + 1);
+                cell.Value = headers[i];
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+                cell.Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            }
+
+            // ---- Filas ----
+            var items = movements.ToList();
+            for (var row = 0; row < items.Count; row++)
+            {
+                var item = items[row];
+                var r = row + 2;
+
+                var typeLabel = item.Type switch
+                {
+                    CashMovementType.Income => "Ingreso",
+                    CashMovementType.Expense => "Egreso",
+                    _ => "—"
+                };
+
+                var reasonLabel = item.Reason switch
+                {
+                    MovementReason.Sale => "Venta",
+                    MovementReason.CustomerPayment => "Cobro a Cliente",
+                    MovementReason.SupplierPayment => "Pago a Proveedor",
+                    MovementReason.CashWithdrawal => "Retiro de Efectivo",
+                    MovementReason.PettyCash => "Caja Chica",
+                    MovementReason.Other => "Otro",
+                    _ => "—"
+                };
+
+                var paymentMethodLabel = item.PaymentMethod switch
+                {
+                    PaymentMethod.Cash => "Efectivo",
+                    PaymentMethod.Card => "Tarjeta",
+                    PaymentMethod.Transfer => "Transferencia",
+                    PaymentMethod.YapePlin => "Yape/Plin",
+                    PaymentMethod.Other => "Otro",
+                    _ => "—"
+                };
+
+                worksheet.Cell(r, 1).Value = item.CreatedAt.ToString("dd/MM/yyyy HH:mm");
+                worksheet.Cell(r, 2).Value = typeLabel;
+                worksheet.Cell(r, 3).Value = reasonLabel;
+                worksheet.Cell(r, 4).Value = paymentMethodLabel;
+                worksheet.Cell(r, 5).Value = item.Amount;
+                worksheet.Cell(r, 6).Value = item.Description ?? string.Empty;
+
+                worksheet.Cell(r, 5).Style.NumberFormat.Format = "#,##0.00";
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
         }
 
         private CashRegisterResponseDto MapToDto(CashRegister register)
