@@ -31,10 +31,22 @@ public class StockMovementReportService : IStockMovementReportService
     {
         var query = _repository.Query();
 
+        // Normalización de fechas: el DateTime que llega del query string se bindea como
+        // Kind=Unspecified, y PostgreSQL (timestamp with time zone) solo acepta UTC. Lo
+        // forzamos a UTC para evitar el error "Cannot write DateTime with Kind=Unspecified".
+        // DateTo se extiende al final del día (23:59:59.999) para incluir el día completo.
         if (dateFrom.HasValue)
-            query = query.Where(s => s.CreatedAt.Date >= dateFrom.Value.Date);
+        {
+            var from = DateTime.SpecifyKind(dateFrom.Value.Date,DateTimeKind.Utc);
+            query = query.Where(s => s.CreatedAt >= from);
+        }
         if (dateTo.HasValue)
-            query = query.Where(s => s.CreatedAt.Date <= dateTo.Value.Date.AddDays(1).AddTicks(-1));
+        {
+            var to = DateTime.SpecifyKind(
+                dateTo.Value.Date.AddDays(1).AddTicks(-1),
+               DateTimeKind.Utc);
+            query = query.Where(s => s.CreatedAt <= to);
+        }
         if (productId.HasValue)
             query = query.Where(s => s.ProductId == productId.Value);
         if (type.HasValue)
