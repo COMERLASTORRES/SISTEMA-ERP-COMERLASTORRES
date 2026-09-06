@@ -43,6 +43,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<ISaleRepository, SaleRepository>();
         services.AddScoped<ISaleService, SaleService>();
+        // Generación de comprobantes PDF (QuestPDF)
+        services.AddScoped<ISaleDocumentService, SaleDocumentService>();
+        services.AddScoped<IPurchaseDocumentService, PurchaseDocumentService>();
         services.AddScoped<ICashRegisterRepository, CashRegisterRepository>();
         services.AddScoped<ICashRegisterService, CashRegisterService>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
