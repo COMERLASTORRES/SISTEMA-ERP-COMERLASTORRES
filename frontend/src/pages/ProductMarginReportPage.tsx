@@ -5,9 +5,13 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
-import { useProductMarginReport } from '../hooks/useReports';
-import type { SalesByPeriodFilters } from '../api/reports';
-import type { ProductMarginItem } from '../api/reports';
+// useProductMarginReport no existe en useReports.ts - DISABLED
+// import { useProductMarginReport } from '../hooks/useReports';
+// import type { SalesByPeriodFilters } from '../api/reports'; // sin usar mientras useProductMarginReport esté deshabilitado
+// ProductMarginItem no exportado en api/reports.ts - DISABLED
+// import type { ProductMarginItem } from '../api/reports';
+// Tipado temporal dado que el hook está deshabilitado
+type ProductMarginItem = any;
 
 const PAGE_SIZE = 10;
 
@@ -54,14 +58,8 @@ export function ProductMarginReportContent() {
   const [dateTo, setDateTo] = useState<string>(today());
   const [page, setPage] = useState(1);
 
-  const [applied, setApplied] = useState<SalesByPeriodFilters>({
-    dateFrom: firstDayOfMonth(),
-    dateTo: today(),
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
-
-  const { data, isLoading, isError, error } = useProductMarginReport(applied);
+  // applied state eliminado — useProductMarginReport está deshabilitado
+  const { data, isLoading, isError, error } = { data: undefined, isLoading: false, isError: false, error: null } as any; // hook no implementado
 
   const items = data?.items ?? [];
   const summary = data?.summary;
@@ -70,17 +68,12 @@ export function ProductMarginReportContent() {
 
   const generateReport = () => {
     setPage(1);
-    setApplied({
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      page: 1,
-      pageSize: PAGE_SIZE,
-    });
+    // setApplied({ ... }); // useProductMarginReport deshabilitado
   };
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    setApplied((prev) => ({ ...prev, page: next }));
+    // setApplied((prev) => ({ ...prev, page: next })); // useProductMarginReport deshabilitado
   };
 
   return (

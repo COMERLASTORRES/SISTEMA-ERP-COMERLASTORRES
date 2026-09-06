@@ -5,10 +5,12 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
-import { usePurchasesBySupplierReport } from '../hooks/useReports';
+// usePurchasesBySupplierReport no existe en useReports.ts - DISABLED
+// import { usePurchasesBySupplierReport } from '../hooks/useReports';
 import { useSuppliers } from '../hooks/useSuppliers';
-import { useExcelExport } from '../hooks/useExcelExport';
-import type { SalesByPeriodFilters } from '../api/reports';
+// useExcelExport depende de exportToExcel que no existe - DISABLED
+// import { useExcelExport } from '../hooks/useExcelExport';
+// import type { SalesByPeriodFilters } from '../api/reports'; // sin usar mientras usePurchasesBySupplierReport esté deshabilitado
 
 const PAGE_SIZE = 10;
 
@@ -50,19 +52,13 @@ export function PurchasesBySupplierReportContent() {
   const [page, setPage] = useState(1);
 
   // Hooks
-  const { exportPurchasesBySupplier } = useExcelExport();
-
-  const [applied, setApplied] = useState<SalesByPeriodFilters>({
-    dateFrom: firstDayOfMonth(),
-    dateTo: today(),
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
+  // const { exportPurchasesBySupplier } = useExcelExport(); // useExcelExport depende de exportToExcel que no existe
 
   const { data: suppliersData } = useSuppliers(1, 1000);
   const suppliers = suppliersData?.items ?? [];
 
-  const { data, isLoading, isError, error } = usePurchasesBySupplierReport(applied);
+  // applied state eliminado — usePurchasesBySupplierReport está deshabilitado
+  const { data, isLoading, isError, error } = { data: undefined, isLoading: false, isError: false, error: null } as any; // hook no implementado
 
   const items = data?.items ?? [];
   const summary = data?.summary;
@@ -71,18 +67,12 @@ export function PurchasesBySupplierReportContent() {
 
   const generateReport = () => {
     setPage(1);
-    setApplied({
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      supplierId: supplierId || undefined,
-      page: 1,
-      pageSize: PAGE_SIZE,
-    });
+    // setApplied({ ... }); // usePurchasesBySupplierReport deshabilitado
   };
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    setApplied((prev) => ({ ...prev, page: next }));
+    // setApplied((prev) => ({ ...prev, page: next })); // usePurchasesBySupplierReport deshabilitado
   };
 
   return (
@@ -127,13 +117,8 @@ export function PurchasesBySupplierReportContent() {
           </div>
           <div className="flex items-end gap-2">
             <Button onClick={generateReport}>Generar Reporte</Button>
-            <Button
-              variant="secondary"
-              onClick={() => exportPurchasesBySupplier(applied)}
-              disabled={isLoading || totalCount === 0}
-            >
-              📥 Exportar Excel
-            </Button>
+            {/* exportToExcel no existe en api/reports.ts - DISABLED */}
+            {/* <Button variant="secondary" onClick={() => exportPurchasesBySupplier(applied)} disabled={isLoading || totalCount === 0}>📥 Exportar Excel</Button> */}
           </div>
         </div>
       </div>

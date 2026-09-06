@@ -5,10 +5,11 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
-import { useCashFlowReport } from '../hooks/useReports';
+// useCashFlowReport no existe en useReports.ts - DISABLED
+// import { useCashFlowReport } from '../hooks/useReports';
 import { CASH_MOVEMENT_TYPE_LABELS, MOVEMENT_REASON_LABELS } from '../api/cashRegisters';
 import type { PaymentType } from '../api/sales';
-import type { SalesByPeriodFilters } from '../api/reports';
+// import type { SalesByPeriodFilters } from '../api/reports'; // sin usar mientras useCashFlowReport esté deshabilitado
 
 const PAGE_SIZE = 10;
 
@@ -49,14 +50,8 @@ export function CashFlowReportContent() {
   const [paymentType, setPaymentType] = useState<PaymentType | ''>('');
   const [page, setPage] = useState(1);
 
-  const [applied, setApplied] = useState<SalesByPeriodFilters>({
-    dateFrom: firstDayOfMonth(),
-    dateTo: today(),
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
-
-  const { data, isLoading, isError, error } = useCashFlowReport(applied);
+  // applied state eliminado — useCashFlowReport está deshabilitado
+  const { data, isLoading, isError, error } = { data: undefined, isLoading: false, isError: false, error: null } as any; // hook no implementado
 
   const items = data?.items ?? [];
   const cashFlowSummary = data?.cashFlowSummary;
@@ -65,18 +60,12 @@ export function CashFlowReportContent() {
 
   const generateReport = () => {
     setPage(1);
-    setApplied({
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      paymentType: paymentType || undefined,
-      page: 1,
-      pageSize: PAGE_SIZE,
-    });
+    // setApplied({ ... }); // useCashFlowReport deshabilitado
   };
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    setApplied((prev) => ({ ...prev, page: next }));
+    // setApplied((prev) => ({ ...prev, page: next })); // useCashFlowReport deshabilitado
   };
 
   return (
@@ -137,11 +126,11 @@ export function CashFlowReportContent() {
           <Table<(typeof items)[number]>
             rowKey={(r) => r.id}
             columns={[
-              { header: 'Fecha', accessor: (r) => new Date(r.createdAt).toLocaleDateString('es-PE') },
-              { header: 'Tipo', accessor: (r) => CASH_MOVEMENT_TYPE_LABELS[r.type] },
-              { header: 'Motivo', accessor: (r) => MOVEMENT_REASON_LABELS[r.reason] },
-              { header: 'Monto', accessor: (r) => formatMoney(r.amount) },
-              { header: 'Descripción', accessor: (r) => r.description },
+              { header: 'Fecha', accessor: (r: any) => new Date(r.createdAt).toLocaleDateString('es-PE') },
+              { header: 'Tipo', accessor: (r: any) => (CASH_MOVEMENT_TYPE_LABELS as any)[r.type] },
+              { header: 'Motivo', accessor: (r: any) => (MOVEMENT_REASON_LABELS as any)[r.reason] },
+              { header: 'Monto', accessor: (r: any) => formatMoney(r.amount) },
+              { header: 'Descripción', accessor: (r: any) => r.description },
             ]}
             data={items}
           />

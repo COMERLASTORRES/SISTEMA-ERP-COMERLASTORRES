@@ -6,13 +6,13 @@ const MODULES = [
   { to: '/', label: 'Dashboard', icon: '📊', permission: null },
   { to: '/productos', label: 'Productos', icon: '📦', permission: PermissionCodes.ProductsView },
   { to: '/categorias', label: 'Categorías', icon: '🏷️', permission: PermissionCodes.CategoriesView },
-  { to: '/clientes', label: 'Clientes', icon: '👥', permission: PermissionCodes.CustomersView },
+  { to: '/clientes', label: 'Clientes', icon: '𑗧', permission: PermissionCodes.CustomersView },
   { to: '/proveedores', label: 'Proveedores', icon: '🏢', permission: PermissionCodes.SuppliersView },
   { to: '/compras', label: 'Compras', icon: '🛒', permission: PermissionCodes.PurchasesView },
   { to: '/ventas', label: 'Ventas', icon: '🧾', permission: PermissionCodes.SalesView },
   { to: '/caja', label: 'Caja', icon: '💰', permission: PermissionCodes.CashRegisterView },
   { to: '/stock', label: 'Stock', icon: '📈', permission: PermissionCodes.StockMovementsView },
-  { to: '/reportes', label: 'Reportes', icon: '📊', permission: PermissionCodes.ReportsView },
+  // { to: '/reportes', label: 'Reportes', icon: '📊', permission: PermissionCodes.ReportsView },
   { to: '/usuarios', label: 'Usuarios', icon: '👤', permission: PermissionCodes.UsersView },
 ];
 

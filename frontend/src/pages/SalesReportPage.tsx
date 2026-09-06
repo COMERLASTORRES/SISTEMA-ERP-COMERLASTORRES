@@ -274,3 +274,5 @@ function extractError(err: any): string {
   }
   return 'Ocurrió un error inesperado.';
 }
+
+export { SalesReportContent };

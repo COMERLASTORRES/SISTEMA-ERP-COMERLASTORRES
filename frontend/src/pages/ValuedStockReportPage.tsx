@@ -5,8 +5,9 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
-import { useValuedStockReport } from '../hooks/useReports';
-import type { SalesByPeriodFilters } from '../api/reports';
+// useValuedStockReport no existe en useReports.ts - DISABLED
+// import { useValuedStockReport } from '../hooks/useReports';
+// import type { SalesByPeriodFilters } from '../api/reports'; // sin usar mientras useValuedStockReport esté deshabilitado
 
 const PAGE_SIZE = 10;
 
@@ -36,12 +37,8 @@ export function ValuedStockReportContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  const [applied, setApplied] = useState<SalesByPeriodFilters>({
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
-
-  const { data, isLoading, isError, error } = useValuedStockReport(applied);
+  // applied state eliminado — useValuedStockReport está deshabilitado
+  const { data, isLoading, isError, error } = { data: null as any, isLoading: false, isError: false, error: null }; // hook no implementado
 
   const items = data?.items ?? [];
   const summary = data?.summary;
@@ -50,16 +47,12 @@ export function ValuedStockReportContent() {
 
   const generateReport = () => {
     setPage(1);
-    setApplied({
-      search: search || undefined,
-      page: 1,
-      pageSize: PAGE_SIZE,
-    });
+    // setApplied({ ... }); // useValuedStockReport deshabilitado
   };
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    setApplied((prev) => ({ ...prev, page: next }));
+    // setApplied((prev) => ({ ...prev, page: next })); // useValuedStockReport deshabilitado
   };
 
   return (

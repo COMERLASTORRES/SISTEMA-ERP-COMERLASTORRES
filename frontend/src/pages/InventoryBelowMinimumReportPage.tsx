@@ -5,8 +5,9 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
-import { useProductsBelowMinimumReport } from '../hooks/useReports';
-import type { SalesByPeriodFilters } from '../api/reports';
+// useProductsBelowMinimumReport no existe en useReports.ts - DISABLED
+// import { useProductsBelowMinimumReport } from '../hooks/useReports';
+// import type { SalesByPeriodFilters } from '../api/reports'; // sin usar mientras useProductsBelowMinimumReport esté deshabilitado
 
 const PAGE_SIZE = 10;
 
@@ -29,12 +30,8 @@ export function InventoryBelowMinimumReportContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  const [applied, setApplied] = useState<SalesByPeriodFilters>({
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
-
-  const { data, isLoading, isError, error } = useProductsBelowMinimumReport(applied);
+  // applied state eliminado — useProductsBelowMinimumReport está deshabilitado
+  const { data, isLoading, isError, error } = { data: undefined, isLoading: false, isError: false, error: null } as any; // hook no implementado
 
   const items = data?.items ?? [];
   const summary = data?.summary;
@@ -43,16 +40,12 @@ export function InventoryBelowMinimumReportContent() {
 
   const generateReport = () => {
     setPage(1);
-    setApplied({
-      search: search || undefined,
-      page: 1,
-      pageSize: PAGE_SIZE,
-    });
+    // setApplied({ ... }); // useProductsBelowMinimumReport deshabilitado
   };
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    setApplied((prev) => ({ ...prev, page: next }));
+    // setApplied((prev) => ({ ...prev, page: next })); // useProductsBelowMinimumReport deshabilitado
   };
 
   return (

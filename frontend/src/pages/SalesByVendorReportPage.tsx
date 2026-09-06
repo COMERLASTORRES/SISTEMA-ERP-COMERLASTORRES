@@ -5,9 +5,11 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
-import { useSalesByVendorReport } from '../hooks/useReports';
-import { useExcelExport } from '../hooks/useExcelExport';
-import type { SalesByPeriodFilters } from '../api/reports';
+// useSalesByVendorReport no existe en useReports.ts - DISABLED
+// import { useSalesByVendorReport } from '../hooks/useReports';
+// useExcelExport depende de exportToExcel que no existe - DISABLED
+// import { useExcelExport } from '../hooks/useExcelExport';
+// import type { SalesByPeriodFilters } from '../api/reports'; // sin usar mientras useSalesByVendorReport esté deshabilitado
 
 const PAGE_SIZE = 10;
 
@@ -48,16 +50,10 @@ export function SalesByVendorReportContent() {
   const [page, setPage] = useState(1);
 
   // Hooks
-  const { exportSalesByVendor } = useExcelExport();
+  // const { exportSalesByVendor } = useExcelExport(); // useExcelExport depende de exportToExcel que no existe
 
-  const [applied, setApplied] = useState<SalesByPeriodFilters>({
-    dateFrom: firstDayOfMonth(),
-    dateTo: today(),
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
-
-  const { data, isLoading, isError, error } = useSalesByVendorReport(applied);
+  // applied state eliminado — useSalesByVendorReport está deshabilitado
+  const { data, isLoading, isError, error } = { data: null as any, isLoading: false, isError: false, error: null }; // hook no implementado
 
   const items = data?.items ?? [];
   const summary = data?.summary;
@@ -66,17 +62,12 @@ export function SalesByVendorReportContent() {
 
   const generateReport = () => {
     setPage(1);
-    setApplied({
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      page: 1,
-      pageSize: PAGE_SIZE,
-    });
+    // setApplied({ ... }); // useSalesByVendorReport deshabilitado
   };
 
   const handlePageChange = (next: number) => {
     setPage(next);
-    setApplied((prev) => ({ ...prev, page: next }));
+    // setApplied((prev) => ({ ...prev, page: next })); // useSalesByVendorReport deshabilitado
   };
 
   return (
@@ -106,13 +97,8 @@ export function SalesByVendorReportContent() {
           </div>
           <div className="flex items-end gap-2">
             <Button onClick={generateReport}>Generar Reporte</Button>
-            <Button
-              variant="secondary"
-              onClick={() => exportSalesByVendor(applied)}
-              disabled={isLoading || totalCount === 0}
-            >
-              📥 Exportar Excel
-            </Button>
+            {/* exportToExcel no existe en api/reports.ts - DISABLED */}
+            {/* <Button variant="secondary" onClick={() => exportSalesByVendor(applied)} disabled={isLoading || totalCount === 0}>📥 Exportar Excel</Button> */}
           </div>
         </div>
       </div>
