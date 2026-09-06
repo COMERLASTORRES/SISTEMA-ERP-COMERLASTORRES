@@ -34,4 +34,17 @@ public class ReportsController : ControllerBase
         var result = await _salesReportService.GetSalesByPeriodAsync(filter);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Exporta el reporte de ventas por período a Excel (.xlsx). Usa los mismos filtros
+    /// que el reporte visual, pero sin paginación.
+    /// </summary>
+    [HttpGet("sales/by-period/export/excel")]
+    [Authorize(Policy = PermissionCodes.ReportsExport)]
+    public async Task<IActionResult> ExportSalesByPeriodExcel([FromQuery] ReportFilterDto filter)
+    {
+        var items = await _salesReportService.GetAllSalesByPeriodAsync(filter);
+        var bytes = await _salesReportService.GenerateSalesReportExcelAsync(items);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ventas-por-periodo.xlsx");
+    }
 }
