@@ -59,7 +59,7 @@ function SalesReportContent() {
   const [paymentStatus, setPaymentStatus] = useState<string>('');
   // Por defecto "Confirmadas". "Todas" se representa con '' (no se envía documentStatus
   // al backend, así la tabla muestra ambos estados pero el resumen sigue solo Confirmed).
-  const [documentStatus, setDocumentStatus] = useState<string>('confirmed');
+  const [documentStatus, setDocumentStatus] = useState<string>(String(SaleStatus.Confirmed));
   const [search, setSearch] = useState<string>('');
   const [page, setPage] = useState(1);
 
