@@ -133,8 +133,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Rate Limiting
-builder.Services.AddRateLimiter(options =>
+// Activar licencia gratuita de QuestPDF 2026.x — sin esto, GeneratePdf() lanza InvalidLicenseException
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+	// Rate Limiting
+	builder.Services.AddRateLimiter(options =>
 {
     // Política global: 100 req/min por usuario autenticado (claim "userId") o IP anónima
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>

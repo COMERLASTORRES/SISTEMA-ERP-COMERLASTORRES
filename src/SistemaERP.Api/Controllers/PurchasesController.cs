@@ -225,6 +225,10 @@ namespace SistemaERP.Api.Controllers
             {
                 return NotFound(ex.Message);
             }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.GetType().Name, message = ex.Message });
+            }
         }
 
         private Guid GetTenantId()
