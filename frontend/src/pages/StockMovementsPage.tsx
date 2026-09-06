@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
-import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
+import { Modal } from '../components/ui/Modal';
 import { PermissionCodes } from '../api/permissionCodes';
+import { api } from '../api/client';
 import { useProducts } from '../hooks/useProducts';
 import {
   useStockMovements,
@@ -79,6 +80,25 @@ function StockMovementsContent() {
     return (id: string): string => map.get(id) ?? id;
   }, [products]);
 
+  const downloadExcel = async () => {
+    try {
+      let url = '/api/reports/stock-movements/export/excel';
+      if (productFilter) url += `?productId=${encodeURIComponent(productFilter)}`;
+      const response = await api.get(url, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = 'movimientos-stock.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(urlObj);
+    } catch (err: any) {
+      window.alert(extractError(err));
+    }
+  };
+
   const openCreate = () => {
     setForm({ productId: products[0]?.id ?? '', type: StockMovementType.Entrada, quantity: '', reason: '' });
     setFormError('');
@@ -126,9 +146,14 @@ function StockMovementsContent() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Movimientos de Stock</h1>
-        <RequirePermission codes={PermissionCodes.StockMovementsCreate}>
-          <Button onClick={openCreate}>Nuevo Movimiento</Button>
-        </RequirePermission>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={downloadExcel}>
+            📊 Exportar Excel
+          </Button>
+          <RequirePermission codes={PermissionCodes.StockMovementsCreate}>
+            <Button onClick={openCreate}>Nuevo Movimiento</Button>
+          </RequirePermission>
+        </div>
       </div>
 
       <div className="flex flex-col gap-1 max-w-xs">

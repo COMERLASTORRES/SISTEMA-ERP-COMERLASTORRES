@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../components/ui/ErrorMessage';
 import { RequirePermission } from '../components/RequirePermission';
 import { PermissionCodes } from '../api/permissionCodes';
+import { api } from '../api/client';
 import { useCashRegister } from '../hooks/useCashRegisters';
 import {
   CashRegisterStatus,
@@ -46,13 +47,36 @@ function CashRegisterDetailContent() {
   if (isError) return <ErrorMessage message={extractError(error)} />;
   if (!register) return <ErrorMessage message="Caja no encontrada." />;
 
+  const downloadExcel = async () => {
+    try {
+      const url = `/api/CashRegisters/${id}/movements/export/excel`;
+      const response = await api.get(url, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = `movimientos-caja-${register.cashRegisterNumber}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(urlObj);
+    } catch (err: any) {
+      window.alert(extractError(err));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Caja {register.cashRegisterNumber}</h1>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[register.status]}`}>
-          {CASH_REGISTER_STATUS_LABELS[register.status]}
-        </span>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={downloadExcel}>
+            📊 Exportar Movimientos
+          </Button>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_BADGE[register.status]}`}>
+            {CASH_REGISTER_STATUS_LABELS[register.status]}
+          </span>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
