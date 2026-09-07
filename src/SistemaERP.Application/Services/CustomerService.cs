@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Application.Services;
@@ -124,10 +123,23 @@ public class CustomerService : ICustomerService
             _logger.LogWarning("Customer {CustomerId} was modified by another process and could not be deleted.", id);
             throw new InvalidOperationException("The customer was modified by another process and could not be deleted.");
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23503")
+        catch (DbUpdateException ex)
         {
-            _logger.LogWarning("Customer {CustomerId} cannot be deleted: has associated sales.", id);
-            throw new InvalidOperationException("No se puede eliminar el cliente: tiene ventas asociadas.");
+            var inner = ex.InnerException;
+            bool isFkViolation =
+                inner?.Message != null &&
+                (
+                    inner.Message.Contains("violates foreign key", StringComparison.OrdinalIgnoreCase) ||
+                    inner.Message.Contains("foreign key constraint", StringComparison.OrdinalIgnoreCase) ||
+                    inner.Message.Contains("could not find foreign key", StringComparison.OrdinalIgnoreCase)
+                );
+            if (isFkViolation)
+            {
+                _logger.LogWarning("Customer {CustomerId} cannot be deleted: has associated sales.", id);
+                throw new InvalidOperationException("No se puede eliminar el cliente: tiene ventas asociadas.");
+            }
+            _logger.LogWarning("Customer {CustomerId} delete failed with unexpected DbUpdateException.", id);
+            throw new InvalidOperationException("No se pudo eliminar el cliente. Intente nuevamente o contacte al administrador.");
         }
     }
 

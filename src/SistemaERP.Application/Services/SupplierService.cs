@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Domain.Entities;
@@ -122,10 +121,23 @@ namespace SistemaERP.Application.Services
                 _logger.LogWarning("Supplier {SupplierId} was modified by another process and could not be deleted.", id);
                 throw new InvalidOperationException("The supplier was modified by another process and could not be deleted.");
             }
-            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23503")
+            catch (DbUpdateException ex)
             {
-                _logger.LogWarning("Supplier {SupplierId} cannot be deleted: has associated purchases.", id);
-                throw new InvalidOperationException("No se puede eliminar el proveedor: tiene compras asociadas.");
+                var inner = ex.InnerException;
+                bool isFkViolation =
+                    inner?.Message != null &&
+                    (
+                        inner.Message.Contains("violates foreign key", StringComparison.OrdinalIgnoreCase) ||
+                        inner.Message.Contains("foreign key constraint", StringComparison.OrdinalIgnoreCase) ||
+                        inner.Message.Contains("could not find foreign key", StringComparison.OrdinalIgnoreCase)
+                    );
+                if (isFkViolation)
+                {
+                    _logger.LogWarning("Supplier {SupplierId} cannot be deleted: has associated purchases.", id);
+                    throw new InvalidOperationException("No se puede eliminar el proveedor: tiene compras asociadas.");
+                }
+                _logger.LogWarning("Supplier {SupplierId} delete failed with unexpected DbUpdateException.", id);
+                throw new InvalidOperationException("No se pudo eliminar el proveedor. Intente nuevamente o contacte al administrador.");
             }
         }
 

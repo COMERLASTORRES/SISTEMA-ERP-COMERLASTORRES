@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Domain.Entities;
@@ -184,10 +183,23 @@ public class ProductService : IProductService
             _logger.LogWarning("Product {ProductId} was modified by another process and could not be deleted.", id);
             throw new InvalidOperationException("The product was modified by another process and could not be deleted.");
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23503")
+        catch (DbUpdateException ex)
         {
-            _logger.LogWarning("Product {ProductId} cannot be deleted: has associated stock movements, sales or purchases.", id);
-            throw new InvalidOperationException("No se puede eliminar el producto: tiene movimientos de stock, ventas o compras asociados.");
+            var inner = ex.InnerException;
+            bool isFkViolation =
+                inner?.Message != null &&
+                (
+                    inner.Message.Contains("violates foreign key", StringComparison.OrdinalIgnoreCase) ||
+                    inner.Message.Contains("foreign key constraint", StringComparison.OrdinalIgnoreCase) ||
+                    inner.Message.Contains("could not find foreign key", StringComparison.OrdinalIgnoreCase)
+                );
+            if (isFkViolation)
+            {
+                _logger.LogWarning("Product {ProductId} cannot be deleted: has associated stock movements, sales or purchases.", id);
+                throw new InvalidOperationException("No se puede eliminar el producto: tiene movimientos de stock, ventas o compras asociados.");
+            }
+            _logger.LogWarning("Product {ProductId} delete failed with unexpected DbUpdateException.", id);
+            throw new InvalidOperationException("No se pudo eliminar el producto. Intente nuevamente o contacte al administrador.");
         }
     }
 }
