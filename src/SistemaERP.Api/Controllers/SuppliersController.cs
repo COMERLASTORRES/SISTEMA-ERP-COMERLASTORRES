@@ -111,8 +111,16 @@ namespace SistemaERP.Api.Controllers
         {
             var supplier = await _supplierService.GetByIdAsync(id);
             if (supplier == null) return NotFound();
-            await _supplierService.DeleteAsync(id);
-            return NoContent();
+
+            try
+            {
+                await _supplierService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
         }
 
         private Guid GetTenantId()

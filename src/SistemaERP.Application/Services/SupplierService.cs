@@ -1,7 +1,9 @@
 using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Domain.Entities;
@@ -110,7 +112,21 @@ namespace SistemaERP.Application.Services
 
         public async Task DeleteAsync(Guid id)
         {
-            await _repository.DeleteAsync(id);
+            try
+            {
+                _logger.LogInformation("Deleting supplier {SupplierId}.", id);
+                await _repository.DeleteAsync(id);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _logger.LogWarning("Supplier {SupplierId} was modified by another process and could not be deleted.", id);
+                throw new InvalidOperationException("The supplier was modified by another process and could not be deleted.");
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23503")
+            {
+                _logger.LogWarning("Supplier {SupplierId} cannot be deleted: has associated purchases.", id);
+                throw new InvalidOperationException("No se puede eliminar el proveedor: tiene compras asociadas.");
+            }
         }
 
         private void ValidateDocumentNumber(DocumentType documentType, string documentNumber)

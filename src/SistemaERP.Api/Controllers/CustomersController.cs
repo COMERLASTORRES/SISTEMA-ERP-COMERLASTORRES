@@ -110,8 +110,16 @@ namespace SistemaERP.Api.Controllers
         {
             var customer = await _customerService.GetByIdAsync(id);
             if (customer == null) return NotFound();
-            await _customerService.DeleteAsync(id);
-            return NoContent();
+
+            try
+            {
+                await _customerService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
         }
 
         private Guid GetTenantId()

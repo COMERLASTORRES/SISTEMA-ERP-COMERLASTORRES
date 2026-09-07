@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Application.Services;
@@ -122,6 +123,11 @@ public class CustomerService : ICustomerService
         {
             _logger.LogWarning("Customer {CustomerId} was modified by another process and could not be deleted.", id);
             throw new InvalidOperationException("The customer was modified by another process and could not be deleted.");
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23503")
+        {
+            _logger.LogWarning("Customer {CustomerId} cannot be deleted: has associated sales.", id);
+            throw new InvalidOperationException("No se puede eliminar el cliente: tiene ventas asociadas.");
         }
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using SistemaERP.Application.DTOs;
 using SistemaERP.Application.Repositories;
 using SistemaERP.Domain.Entities;
@@ -182,6 +183,11 @@ public class ProductService : IProductService
         {
             _logger.LogWarning("Product {ProductId} was modified by another process and could not be deleted.", id);
             throw new InvalidOperationException("The product was modified by another process and could not be deleted.");
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23503")
+        {
+            _logger.LogWarning("Product {ProductId} cannot be deleted: has associated stock movements, sales or purchases.", id);
+            throw new InvalidOperationException("No se puede eliminar el producto: tiene movimientos de stock, ventas o compras asociados.");
         }
     }
 }
